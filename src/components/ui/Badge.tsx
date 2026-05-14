@@ -1,0 +1,60 @@
+import type { HTMLAttributes, ReactNode } from 'react';
+import { cn } from '@/lib/utils';
+
+interface BadgeProps extends HTMLAttributes<HTMLSpanElement> {
+  variant?: 'default' | 'accent' | 'success' | 'warning' | 'error' | 'outline';
+  size?: 'sm' | 'md';
+  icon?: ReactNode;
+  dot?: boolean;
+}
+
+const variantStyles: Record<string, string> = {
+  default: 'bg-bg-tertiary text-text-secondary',
+  accent: 'bg-accent/10 text-accent',
+  success: 'bg-success/10 text-success',
+  warning: 'bg-warning/10 text-warning',
+  error: 'bg-error/10 text-error',
+  outline: 'border border-border text-text-secondary',
+};
+
+const sizeStyles: Record<string, string> = {
+  sm: 'px-1.5 py-px text-[10px]',
+  md: 'px-2 py-0.5 text-xs',
+};
+
+const dotColorMap: Record<string, string> = {
+  default: 'bg-text-tertiary',
+  accent: 'bg-accent',
+  success: 'bg-success',
+  warning: 'bg-warning',
+  error: 'bg-error',
+  outline: 'bg-text-tertiary',
+};
+
+export default function Badge({
+  className,
+  variant = 'default',
+  size = 'md',
+  icon,
+  dot,
+  children,
+  ...props
+}: BadgeProps) {
+  return (
+    <span
+      className={cn(
+        'inline-flex items-center gap-1 rounded-full font-medium leading-none',
+        variantStyles[variant],
+        sizeStyles[size],
+        className
+      )}
+      {...props}
+    >
+      {dot && (
+        <span className={cn('h-1.5 w-1.5 rounded-full shrink-0', dotColorMap[variant])} />
+      )}
+      {icon && <span className="shrink-0 [&>svg]:h-3 [&>svg]:w-3">{icon}</span>}
+      {children}
+    </span>
+  );
+}
