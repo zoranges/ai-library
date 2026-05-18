@@ -8,8 +8,8 @@ import { cn } from '@/lib/utils';
 import { adminApi } from '@/utils/api';
 
 const tabItems = [
-  { key: 'profile', label: 'Profile' },
-  { key: 'security', label: 'Security' },
+  { key: 'profile', label: '👤 个人资料' },
+  { key: 'security', label: '🔒 安全设置' },
 ];
 
 const mockDevices = [
@@ -90,7 +90,7 @@ export default function AccountCenter() {
 
   return (
     <div className="space-y-4">
-      <h2 className="text-lg font-semibold text-text-primary font-heading">Account Center</h2>
+      <h2 className="text-lg font-extrabold text-text-primary font-heading">👤 账户中心</h2>
 
       <div className="relative flex border-b border-border">
         {tabItems.map((t) => (
@@ -120,10 +120,10 @@ export default function AccountCenter() {
           <div className="max-w-lg space-y-5">
             <div className="flex items-center gap-4">
               <div className="relative">
-                <div className="h-16 w-16 bg-accent/10 rounded-full flex items-center justify-center text-accent text-xl font-bold">
+                <div className="h-16 w-16 bg-gradient-to-br from-accent to-brand-600 rounded-full flex items-center justify-center text-white text-xl font-bold">
                   {profile.name.charAt(0)}
                 </div>
-                <button className="absolute -bottom-0.5 -right-0.5 h-6 w-6 bg-accent rounded-full flex items-center justify-center text-white shadow-1 hover:bg-accent-hover transition-colors">
+                <button className="absolute -bottom-0.5 -right-0.5 h-6 w-6 bg-accent rounded-full flex items-center justify-center text-white shadow-1 hover:bg-accent-hover hover:scale-110 transition-all duration-200">
                   <Camera className="h-3 w-3" strokeWidth={1.5} />
                 </button>
               </div>

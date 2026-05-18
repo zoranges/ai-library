@@ -14,13 +14,13 @@ router.get('/favorites', verifyToken, async (req: Request, res: Response): Promi
     const pageSizeNum = Math.min(50, Math.max(1, parseInt(pageSize as string)));
     const offset = (pageNum - 1) * pageSizeNum;
 
-    const countResult = queryOne(
+    const countResult = await queryOne(
       'SELECT COUNT(*) as total FROM favorites WHERE userId = ?',
       [userId]
     );
     const total = countResult ? (countResult.total as number) : 0;
 
-    const favorites = queryAll(
+    const favorites = await queryAll(
       `SELECT f.*, b.title, b.author, b.coverUrl, b.description, b.pageCount, b.language, b.difficulty, b.rating, b.categoryId,
               c.name as categoryName, c.icon as categoryIcon, c.color as categoryColor
        FROM favorites f
@@ -28,8 +28,8 @@ router.get('/favorites', verifyToken, async (req: Request, res: Response): Promi
        LEFT JOIN book_categories c ON b.categoryId = c.id
        WHERE f.userId = ?
        ORDER BY f.createdAt DESC
-       LIMIT ${pageSizeNum} OFFSET ${offset}`,
-      [userId]
+       LIMIT ? OFFSET ?`,
+      [userId, pageSizeNum, offset]
     );
 
     const formatted = favorites.map(f => ({
@@ -82,17 +82,17 @@ router.post('/favorites', verifyToken, async (req: Request, res: Response): Prom
       return;
     }
 
-    const existing = queryOne('SELECT id FROM favorites WHERE userId = ? AND bookId = ?', [userId, bookId]);
+    const existing = await queryOne('SELECT id FROM favorites WHERE userId = ? AND bookId = ?', [userId, bookId]);
     if (existing) {
       res.status(409).json({ success: false, error: 'Already favorited' });
       return;
     }
 
     const id = uuidv4();
-    run('INSERT INTO favorites (id, userId, bookId) VALUES (?, ?, ?)', [id, userId, bookId]);
-    run('UPDATE books SET favoriteCount = favoriteCount + 1 WHERE id = ?', [bookId]);
+    await run('INSERT INTO favorites (id, userId, bookId) VALUES (?, ?, ?)', [id, userId, bookId]);
+    await run('UPDATE books SET favoriteCount = favoriteCount + 1 WHERE id = ?', [bookId]);
 
-    const favorite = queryOne('SELECT * FROM favorites WHERE id = ?', [id]);
+    const favorite = await queryOne('SELECT * FROM favorites WHERE id = ?', [id]);
     res.status(201).json({ success: true, data: favorite });
   } catch (error) {
     res.status(500).json({ success: false, error: 'Failed to add favorite' });
@@ -104,7 +104,7 @@ router.get('/favorites/check/:bookId', verifyToken, async (req: Request, res: Re
     const userId = req.user!.userId;
     const bookId = req.params.bookId;
 
-    const existing = queryOne('SELECT id FROM favorites WHERE userId = ? AND bookId = ?', [userId, bookId]);
+    const existing = await queryOne('SELECT id FROM favorites WHERE userId = ? AND bookId = ?', [userId, bookId]);
     res.json({ success: true, data: { isFavorite: !!existing } });
   } catch (error) {
     res.status(500).json({ success: false, error: 'Failed to check favorite' });
@@ -116,14 +116,14 @@ router.delete('/favorites/:bookId', verifyToken, async (req: Request, res: Respo
     const userId = req.user!.userId;
     const bookId = req.params.bookId;
 
-    const existing = queryOne('SELECT id FROM favorites WHERE userId = ? AND bookId = ?', [userId, bookId]);
+    const existing = await queryOne('SELECT id FROM favorites WHERE userId = ? AND bookId = ?', [userId, bookId]);
     if (!existing) {
       res.status(404).json({ success: false, error: 'Favorite not found' });
       return;
     }
 
-    run('DELETE FROM favorites WHERE userId = ? AND bookId = ?', [userId, bookId]);
-    run('UPDATE books SET favoriteCount = MAX(0, favoriteCount - 1) WHERE id = ?', [bookId]);
+    await run('DELETE FROM favorites WHERE userId = ? AND bookId = ?', [userId, bookId]);
+    await run('UPDATE books SET favoriteCount = MAX(0, favoriteCount - 1) WHERE id = ?', [bookId]);
 
     res.json({ success: true, message: 'Favorite removed' });
   } catch (error) {
@@ -148,7 +148,7 @@ router.get('/highlights', verifyToken, async (req: Request, res: Response): Prom
     }
 
     sql += ' ORDER BY h.createdAt DESC';
-    const highlights = queryAll(sql, params);
+    const highlights = await queryAll(sql, params);
 
     res.json({ success: true, data: highlights });
   } catch (error) {
@@ -167,12 +167,12 @@ router.post('/highlights', verifyToken, async (req: Request, res: Response): Pro
     }
 
     const id = uuidv4();
-    run(
+    await run(
       'INSERT INTO highlights (id, userId, bookId, text, color, page, note) VALUES (?, ?, ?, ?, ?, ?, ?)',
       [id, userId, bookId, text, color || '#FFEB3B', page, note || null]
     );
 
-    const highlight = queryOne('SELECT * FROM highlights WHERE id = ?', [id]);
+    const highlight = await queryOne('SELECT * FROM highlights WHERE id = ?', [id]);
     res.status(201).json({ success: true, data: highlight });
   } catch (error) {
     res.status(500).json({ success: false, error: 'Failed to create highlight' });
@@ -185,17 +185,17 @@ router.put('/highlights/:id', verifyToken, async (req: Request, res: Response): 
     const highlightId = req.params.id;
     const { text, color, note } = req.body;
 
-    const existing = queryOne('SELECT id FROM highlights WHERE id = ? AND userId = ?', [highlightId, userId]);
+    const existing = await queryOne('SELECT id FROM highlights WHERE id = ? AND userId = ?', [highlightId, userId]);
     if (!existing) {
       res.status(404).json({ success: false, error: 'Highlight not found' });
       return;
     }
 
-    if (text) run('UPDATE highlights SET text = ? WHERE id = ?', [text, highlightId]);
-    if (color) run('UPDATE highlights SET color = ? WHERE id = ?', [color, highlightId]);
-    if (note !== undefined) run('UPDATE highlights SET note = ? WHERE id = ?', [note, highlightId]);
+    if (text) await run('UPDATE highlights SET text = ? WHERE id = ?', [text, highlightId]);
+    if (color) await run('UPDATE highlights SET color = ? WHERE id = ?', [color, highlightId]);
+    if (note !== undefined) await run('UPDATE highlights SET note = ? WHERE id = ?', [note, highlightId]);
 
-    const updated = queryOne('SELECT * FROM highlights WHERE id = ?', [highlightId]);
+    const updated = await queryOne('SELECT * FROM highlights WHERE id = ?', [highlightId]);
     res.json({ success: true, data: updated });
   } catch (error) {
     res.status(500).json({ success: false, error: 'Failed to update highlight' });
@@ -207,13 +207,13 @@ router.delete('/highlights/:id', verifyToken, async (req: Request, res: Response
     const userId = req.user!.userId;
     const highlightId = req.params.id;
 
-    const existing = queryOne('SELECT id FROM highlights WHERE id = ? AND userId = ?', [highlightId, userId]);
+    const existing = await queryOne('SELECT id FROM highlights WHERE id = ? AND userId = ?', [highlightId, userId]);
     if (!existing) {
       res.status(404).json({ success: false, error: 'Highlight not found' });
       return;
     }
 
-    run('DELETE FROM highlights WHERE id = ?', [highlightId]);
+    await run('DELETE FROM highlights WHERE id = ?', [highlightId]);
     res.json({ success: true, message: 'Highlight deleted' });
   } catch (error) {
     res.status(500).json({ success: false, error: 'Failed to delete highlight' });
@@ -244,11 +244,11 @@ router.get('/notes', verifyToken, async (req: Request, res: Response): Promise<v
       dataParams.push(bookId);
     }
 
-    const countResult = queryOne(countSql, countParams);
+    const countResult = await queryOne(countSql, countParams);
     const total = countResult ? (countResult.total as number) : 0;
 
-    dataSql += ` ORDER BY n.updatedAt DESC LIMIT ${pageSizeNum} OFFSET ${offset}`;
-    const notes = queryAll(dataSql, dataParams);
+    dataSql += ` ORDER BY n.updatedAt DESC LIMIT ? OFFSET ?`;
+    const notes = await queryAll(dataSql, [...dataParams, pageSizeNum, offset]);
 
     const formatted = notes.map(n => ({
       ...n,
@@ -286,12 +286,12 @@ router.post('/notes', verifyToken, async (req: Request, res: Response): Promise<
     }
 
     const id = uuidv4();
-    run(
+    await run(
       'INSERT INTO notes (id, userId, bookId, title, content, page, isPublic) VALUES (?, ?, ?, ?, ?, ?, ?)',
       [id, userId, bookId, title, content, page || null, isPublic ? 1 : 0]
     );
 
-    const note = queryOne('SELECT * FROM notes WHERE id = ?', [id]);
+    const note = await queryOne('SELECT * FROM notes WHERE id = ?', [id]);
     res.status(201).json({ success: true, data: note });
   } catch (error) {
     res.status(500).json({ success: false, error: 'Failed to create note' });
@@ -304,19 +304,19 @@ router.put('/notes/:id', verifyToken, async (req: Request, res: Response): Promi
     const noteId = req.params.id;
     const { title, content, page, isPublic } = req.body;
 
-    const existing = queryOne('SELECT id FROM notes WHERE id = ? AND userId = ?', [noteId, userId]);
+    const existing = await queryOne('SELECT id FROM notes WHERE id = ? AND userId = ?', [noteId, userId]);
     if (!existing) {
       res.status(404).json({ success: false, error: 'Note not found' });
       return;
     }
 
     const now = new Date().toISOString();
-    if (title) run('UPDATE notes SET title = ?, updatedAt = ? WHERE id = ?', [title, now, noteId]);
-    if (content) run('UPDATE notes SET content = ?, updatedAt = ? WHERE id = ?', [content, now, noteId]);
-    if (page !== undefined) run('UPDATE notes SET page = ?, updatedAt = ? WHERE id = ?', [page, now, noteId]);
-    if (isPublic !== undefined) run('UPDATE notes SET isPublic = ?, updatedAt = ? WHERE id = ?', [isPublic ? 1 : 0, now, noteId]);
+    if (title) await run('UPDATE notes SET title = ?, updatedAt = ? WHERE id = ?', [title, now, noteId]);
+    if (content) await run('UPDATE notes SET content = ?, updatedAt = ? WHERE id = ?', [content, now, noteId]);
+    if (page !== undefined) await run('UPDATE notes SET page = ?, updatedAt = ? WHERE id = ?', [page, now, noteId]);
+    if (isPublic !== undefined) await run('UPDATE notes SET isPublic = ?, updatedAt = ? WHERE id = ?', [isPublic ? 1 : 0, now, noteId]);
 
-    const updated = queryOne('SELECT * FROM notes WHERE id = ?', [noteId]);
+    const updated = await queryOne('SELECT * FROM notes WHERE id = ?', [noteId]);
     res.json({ success: true, data: updated });
   } catch (error) {
     res.status(500).json({ success: false, error: 'Failed to update note' });
@@ -328,13 +328,13 @@ router.delete('/notes/:id', verifyToken, async (req: Request, res: Response): Pr
     const userId = req.user!.userId;
     const noteId = req.params.id;
 
-    const existing = queryOne('SELECT id FROM notes WHERE id = ? AND userId = ?', [noteId, userId]);
+    const existing = await queryOne('SELECT id FROM notes WHERE id = ? AND userId = ?', [noteId, userId]);
     if (!existing) {
       res.status(404).json({ success: false, error: 'Note not found' });
       return;
     }
 
-    run('DELETE FROM notes WHERE id = ?', [noteId]);
+    await run('DELETE FROM notes WHERE id = ?', [noteId]);
     res.json({ success: true, message: 'Note deleted' });
   } catch (error) {
     res.status(500).json({ success: false, error: 'Failed to delete note' });

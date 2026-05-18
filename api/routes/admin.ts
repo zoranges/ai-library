@@ -1,7 +1,7 @@
 import { Router, type Request, type Response } from 'express';
 import { v4 as uuidv4 } from 'uuid';
 import bcrypt from 'bcryptjs';
-import { queryAll, queryOne, run } from '../db/database.js';
+import { queryAll, queryOne, run, safeJsonParse } from '../db/database.js';
 import { verifyToken, requireRole, generateToken, type JwtPayload } from '../middleware/auth.js';
 
 const router = Router();
@@ -11,19 +11,18 @@ router.use(requireRole('admin', 'super_admin'));
 
 router.get('/dashboard', async (req: Request, res: Response): Promise<void> => {
   try {
-    const totalStudents = queryOne('SELECT COUNT(*) as count FROM users WHERE role = ?')?.count || 0;
-    const totalStudentsResult = queryOne('SELECT COUNT(*) as count FROM users WHERE role = ?', ['student']);
-    const totalBooks = queryOne('SELECT COUNT(*) as count FROM books WHERE isActive = 1')?.count || 0;
-    const totalSchools = queryOne('SELECT COUNT(*) as count FROM schools WHERE isActive = 1')?.count || 0;
-    const activeReaders = queryOne(
-      "SELECT COUNT(DISTINCT userId) as count FROM reading_sessions WHERE startedAt >= datetime('now', '-7 days')"
-    )?.count || 0;
-    const booksThisMonth = queryOne(
-      "SELECT COUNT(*) as count FROM reading_progress WHERE isCompleted = 1 AND startedAt >= datetime('now', '-30 days')"
-    )?.count || 0;
-    const avgQuiz = queryOne('SELECT COALESCE(AVG(score), 0) as avg FROM quiz_results')?.avg || 0;
+    const totalStudentsResult = await queryOne('SELECT COUNT(*) as count FROM users WHERE role = ?', ['student']);
+    const totalBooks = (await queryOne('SELECT COUNT(*) as count FROM books WHERE isActive = 1'))?.count || 0;
+    const totalSchools = (await queryOne('SELECT COUNT(*) as count FROM schools WHERE isActive = 1'))?.count || 0;
+    const activeReaders = (await queryOne(
+      "SELECT COUNT(DISTINCT userId) as count FROM reading_sessions WHERE startedAt >= DATE_SUB(NOW(), INTERVAL 7 DAY)"
+    ))?.count || 0;
+    const booksThisMonth = (await queryOne(
+      "SELECT COUNT(*) as count FROM reading_progress WHERE isCompleted = 1 AND startedAt >= DATE_SUB(NOW(), INTERVAL 30 DAY)"
+    ))?.count || 0;
+    const avgQuiz = (await queryOne('SELECT COALESCE(AVG(score), 0) as avg FROM quiz_results'))?.avg || 0;
 
-    const topSchools = queryAll(
+    const topSchools = await queryAll(
       `SELECT s.*, COUNT(u.id) as activeStudents
        FROM schools s
        LEFT JOIN users u ON s.id = u.schoolId AND u.role = 'student'
@@ -33,7 +32,7 @@ router.get('/dashboard', async (req: Request, res: Response): Promise<void> => {
        LIMIT 5`
     );
 
-    const recentActivities = queryAll(
+    const recentActivities = await queryAll(
       `SELECT rp.id, rp.userId, u.username, 'reading' as type,
               'completed a book' as description, rp.startedAt as createdAt
        FROM reading_progress rp
@@ -47,7 +46,7 @@ router.get('/dashboard', async (req: Request, res: Response): Promise<void> => {
       const date = new Date();
       date.setDate(date.getDate() - i);
       const dateStr = date.toISOString().split('T')[0];
-      const result = queryOne(
+      const result = await queryOne(
         'SELECT COUNT(*) as count FROM reading_sessions WHERE DATE(startedAt) = ?',
         [dateStr]
       );
@@ -90,11 +89,11 @@ router.get('/schools', async (req: Request, res: Response): Promise<void> => {
       params.push(`%${search}%`);
     }
 
-    const countResult = queryOne(countSql, params);
+    const countResult = await queryOne(countSql, params);
     const total = countResult ? (countResult.total as number) : 0;
 
-    dataSql += ` ORDER BY createdAt DESC LIMIT ${pageSizeNum} OFFSET ${offset}`;
-    const schools = queryAll(dataSql, params);
+    dataSql += ` ORDER BY createdAt DESC LIMIT ? OFFSET ?`;
+    const schools = await queryAll(dataSql, [...params, pageSizeNum, offset]);
 
     res.json({
       success: true,
@@ -120,12 +119,12 @@ router.post('/schools', requireRole('super_admin'), async (req: Request, res: Re
     }
 
     const id = uuidv4();
-    run(
+    await run(
       'INSERT INTO schools (id, name, address, contactPhone, contactEmail) VALUES (?, ?, ?, ?, ?)',
       [id, name, address || null, contactPhone || null, contactEmail || null]
     );
 
-    const school = queryOne('SELECT * FROM schools WHERE id = ?', [id]);
+    const school = await queryOne('SELECT * FROM schools WHERE id = ?', [id]);
     res.status(201).json({ success: true, data: school });
   } catch (error) {
     res.status(500).json({ success: false, error: 'Failed to create school' });
@@ -137,19 +136,19 @@ router.put('/schools/:id', requireRole('super_admin'), async (req: Request, res:
     const schoolId = req.params.id;
     const { name, address, contactPhone, contactEmail, isActive } = req.body;
 
-    const existing = queryOne('SELECT id FROM schools WHERE id = ?', [schoolId]);
+    const existing = await queryOne('SELECT id FROM schools WHERE id = ?', [schoolId]);
     if (!existing) {
       res.status(404).json({ success: false, error: 'School not found' });
       return;
     }
 
-    if (name) run('UPDATE schools SET name = ? WHERE id = ?', [name, schoolId]);
-    if (address !== undefined) run('UPDATE schools SET address = ? WHERE id = ?', [address, schoolId]);
-    if (contactPhone !== undefined) run('UPDATE schools SET contactPhone = ? WHERE id = ?', [contactPhone, schoolId]);
-    if (contactEmail !== undefined) run('UPDATE schools SET contactEmail = ? WHERE id = ?', [contactEmail, schoolId]);
-    if (isActive !== undefined) run('UPDATE schools SET isActive = ? WHERE id = ?', [isActive ? 1 : 0, schoolId]);
+    if (name) await run('UPDATE schools SET name = ? WHERE id = ?', [name, schoolId]);
+    if (address !== undefined) await run('UPDATE schools SET address = ? WHERE id = ?', [address, schoolId]);
+    if (contactPhone !== undefined) await run('UPDATE schools SET contactPhone = ? WHERE id = ?', [contactPhone, schoolId]);
+    if (contactEmail !== undefined) await run('UPDATE schools SET contactEmail = ? WHERE id = ?', [contactEmail, schoolId]);
+    if (isActive !== undefined) await run('UPDATE schools SET isActive = ? WHERE id = ?', [isActive ? 1 : 0, schoolId]);
 
-    const updated = queryOne('SELECT * FROM schools WHERE id = ?', [schoolId]);
+    const updated = await queryOne('SELECT * FROM schools WHERE id = ?', [schoolId]);
     res.json({ success: true, data: updated });
   } catch (error) {
     res.status(500).json({ success: false, error: 'Failed to update school' });
@@ -159,13 +158,13 @@ router.put('/schools/:id', requireRole('super_admin'), async (req: Request, res:
 router.delete('/schools/:id', requireRole('super_admin'), async (req: Request, res: Response): Promise<void> => {
   try {
     const schoolId = req.params.id;
-    const existing = queryOne('SELECT id FROM schools WHERE id = ?', [schoolId]);
+    const existing = await queryOne('SELECT id FROM schools WHERE id = ?', [schoolId]);
     if (!existing) {
       res.status(404).json({ success: false, error: 'School not found' });
       return;
     }
 
-    run('UPDATE schools SET isActive = 0 WHERE id = ?', [schoolId]);
+    await run('UPDATE schools SET isActive = 0 WHERE id = ?', [schoolId]);
     res.json({ success: true, message: 'School deactivated' });
   } catch (error) {
     res.status(500).json({ success: false, error: 'Failed to delete school' });
@@ -200,11 +199,11 @@ router.get('/students', async (req: Request, res: Response): Promise<void> => {
       schoolFilter.push(schoolId);
     }
 
-    const countResult = queryOne(countSql, [...params, ...schoolFilter]);
+    const countResult = await queryOne(countSql, [...params, ...schoolFilter]);
     const total = countResult ? (countResult.total as number) : 0;
 
-    dataSql += ` ORDER BY u.createdAt DESC LIMIT ${pageSizeNum} OFFSET ${offset}`;
-    const students = queryAll(dataSql, [...params, ...schoolFilter]);
+    dataSql += ` ORDER BY u.createdAt DESC LIMIT ? OFFSET ?`;
+    const students = await queryAll(dataSql, [...params, ...schoolFilter, pageSizeNum, offset]);
 
     const formatted = students.map(s => {
       const { password: _, ...rest } = s;
@@ -228,7 +227,7 @@ router.get('/students', async (req: Request, res: Response): Promise<void> => {
 
 router.get('/students/:id', async (req: Request, res: Response): Promise<void> => {
   try {
-    const student = queryOne(
+    const student = await queryOne(
       `SELECT u.*, s.name as schoolName
        FROM users u
        LEFT JOIN schools s ON u.schoolId = s.id
@@ -243,11 +242,11 @@ router.get('/students/:id', async (req: Request, res: Response): Promise<void> =
 
     const { password: _, ...studentWithoutPassword } = student;
 
-    const readingStats = queryOne(
+    const readingStats = await queryOne(
       'SELECT COUNT(*) as totalBooks, COALESCE(SUM(CASE WHEN isCompleted = 1 THEN 1 ELSE 0 END), 0) as completedBooks FROM reading_progress WHERE userId = ?',
       [req.params.id]
     );
-    const quizStats = queryOne(
+    const quizStats = await queryOne(
       'SELECT COUNT(*) as totalQuizzes, COALESCE(AVG(score), 0) as avgScore FROM quiz_results WHERE userId = ?',
       [req.params.id]
     );
@@ -270,17 +269,17 @@ router.put('/students/:id', async (req: Request, res: Response): Promise<void> =
     const studentId = req.params.id;
     const { username, grade, schoolId, isActive } = req.body;
 
-    const existing = queryOne("SELECT id FROM users WHERE id = ? AND role = 'student'", [studentId]);
+    const existing = await queryOne("SELECT id FROM users WHERE id = ? AND role = 'student'", [studentId]);
     if (!existing) {
       res.status(404).json({ success: false, error: 'Student not found' });
       return;
     }
 
-    if (username) run('UPDATE users SET username = ?, updatedAt = datetime("now") WHERE id = ?', [username, studentId]);
-    if (grade !== undefined) run('UPDATE users SET grade = ?, updatedAt = datetime("now") WHERE id = ?', [grade, studentId]);
-    if (schoolId) run('UPDATE users SET schoolId = ?, updatedAt = datetime("now") WHERE id = ?', [schoolId, studentId]);
+    if (username) await run('UPDATE users SET username = ?, updatedAt = NOW() WHERE id = ?', [username, studentId]);
+    if (grade !== undefined) await run('UPDATE users SET grade = ?, updatedAt = NOW() WHERE id = ?', [grade, studentId]);
+    if (schoolId) await run('UPDATE users SET schoolId = ?, updatedAt = NOW() WHERE id = ?', [schoolId, studentId]);
 
-    const updated = queryOne('SELECT * FROM users WHERE id = ?', [studentId]);
+    const updated = await queryOne('SELECT * FROM users WHERE id = ?', [studentId]);
     const { password: _, ...studentWithoutPassword } = updated!;
     res.json({ success: true, data: studentWithoutPassword });
   } catch (error) {
@@ -291,23 +290,23 @@ router.put('/students/:id', async (req: Request, res: Response): Promise<void> =
 router.delete('/students/:id', requireRole('super_admin'), async (req: Request, res: Response): Promise<void> => {
   try {
     const studentId = req.params.id;
-    const existing = queryOne("SELECT id FROM users WHERE id = ? AND role = 'student'", [studentId]);
+    const existing = await queryOne("SELECT id FROM users WHERE id = ? AND role = 'student'", [studentId]);
     if (!existing) {
       res.status(404).json({ success: false, error: 'Student not found' });
       return;
     }
 
-    run('DELETE FROM reading_progress WHERE userId = ?', [studentId]);
-    run('DELETE FROM reading_sessions WHERE userId = ?', [studentId]);
-    run('DELETE FROM favorites WHERE userId = ?', [studentId]);
-    run('DELETE FROM highlights WHERE userId = ?', [studentId]);
-    run('DELETE FROM notes WHERE userId = ?', [studentId]);
-    run('DELETE FROM quiz_results WHERE userId = ?', [studentId]);
-    run('DELETE FROM user_achievements WHERE userId = ?', [studentId]);
-    run('DELETE FROM user_badges WHERE userId = ?', [studentId]);
-    run('DELETE FROM points WHERE userId = ?', [studentId]);
-    run('DELETE FROM admins WHERE userId = ?', [studentId]);
-    run('DELETE FROM users WHERE id = ?', [studentId]);
+    await run('DELETE FROM reading_progress WHERE userId = ?', [studentId]);
+    await run('DELETE FROM reading_sessions WHERE userId = ?', [studentId]);
+    await run('DELETE FROM favorites WHERE userId = ?', [studentId]);
+    await run('DELETE FROM highlights WHERE userId = ?', [studentId]);
+    await run('DELETE FROM notes WHERE userId = ?', [studentId]);
+    await run('DELETE FROM quiz_results WHERE userId = ?', [studentId]);
+    await run('DELETE FROM user_achievements WHERE userId = ?', [studentId]);
+    await run('DELETE FROM user_badges WHERE userId = ?', [studentId]);
+    await run('DELETE FROM points WHERE userId = ?', [studentId]);
+    await run('DELETE FROM admins WHERE userId = ?', [studentId]);
+    await run('DELETE FROM users WHERE id = ?', [studentId]);
 
     res.json({ success: true, message: 'Student deleted' });
   } catch (error) {
@@ -317,7 +316,7 @@ router.delete('/students/:id', requireRole('super_admin'), async (req: Request, 
 
 router.get('/admins', async (req: Request, res: Response): Promise<void> => {
   try {
-    const admins = queryAll(
+    const admins = await queryAll(
       `SELECT a.*, u.username, u.email, u.avatar, s.name as schoolName
        FROM admins a
        JOIN users u ON a.userId = u.id
@@ -328,7 +327,7 @@ router.get('/admins', async (req: Request, res: Response): Promise<void> => {
 
     const formatted = admins.map(a => ({
       ...a,
-      permissions: JSON.parse((a.permissions as string) || '[]'),
+      permissions: safeJsonParse(a.permissions, []),
       user: {
         id: a.userId,
         username: a.username,
@@ -355,7 +354,7 @@ router.post('/admins', requireRole('super_admin'), async (req: Request, res: Res
       return;
     }
 
-    const existing = queryOne('SELECT id FROM users WHERE email = ?', [email]);
+    const existing = await queryOne('SELECT id FROM users WHERE email = ?', [email]);
     if (existing) {
       res.status(409).json({ success: false, error: 'Email already registered' });
       return;
@@ -365,17 +364,17 @@ router.post('/admins', requireRole('super_admin'), async (req: Request, res: Res
     const userId = uuidv4();
     const adminId = uuidv4();
 
-    run(
+    await run(
       'INSERT INTO users (id, username, email, password, schoolId, role) VALUES (?, ?, ?, ?, ?, ?)',
       [userId, username, email, hashedPassword, schoolId, 'admin']
     );
 
-    run(
+    await run(
       'INSERT INTO admins (id, userId, schoolId, role, permissions) VALUES (?, ?, ?, ?, ?)',
       [adminId, userId, schoolId, 'admin', JSON.stringify(permissions || ['read', 'write'])]
     );
 
-    const admin = queryOne(
+    const admin = await queryOne(
       `SELECT a.*, u.username, u.email, s.name as schoolName
        FROM admins a
        JOIN users u ON a.userId = u.id
@@ -395,17 +394,17 @@ router.put('/admins/:id', requireRole('super_admin'), async (req: Request, res: 
     const adminId = req.params.id;
     const { permissions, isActive, schoolId } = req.body;
 
-    const existing = queryOne('SELECT id FROM admins WHERE id = ?', [adminId]);
+    const existing = await queryOne('SELECT id FROM admins WHERE id = ?', [adminId]);
     if (!existing) {
       res.status(404).json({ success: false, error: 'Admin not found' });
       return;
     }
 
-    if (permissions) run('UPDATE admins SET permissions = ? WHERE id = ?', [JSON.stringify(permissions), adminId]);
-    if (isActive !== undefined) run('UPDATE admins SET isActive = ? WHERE id = ?', [isActive ? 1 : 0, adminId]);
-    if (schoolId) run('UPDATE admins SET schoolId = ? WHERE id = ?', [schoolId, adminId]);
+    if (permissions) await run('UPDATE admins SET permissions = ? WHERE id = ?', [JSON.stringify(permissions), adminId]);
+    if (isActive !== undefined) await run('UPDATE admins SET isActive = ? WHERE id = ?', [isActive ? 1 : 0, adminId]);
+    if (schoolId) await run('UPDATE admins SET schoolId = ? WHERE id = ?', [schoolId, adminId]);
 
-    const updated = queryOne(
+    const updated = await queryOne(
       `SELECT a.*, u.username, u.email, s.name as schoolName
        FROM admins a
        JOIN users u ON a.userId = u.id
@@ -423,14 +422,14 @@ router.put('/admins/:id', requireRole('super_admin'), async (req: Request, res: 
 router.delete('/admins/:id', requireRole('super_admin'), async (req: Request, res: Response): Promise<void> => {
   try {
     const adminId = req.params.id;
-    const existing = queryOne('SELECT id, userId FROM admins WHERE id = ?', [adminId]);
+    const existing = await queryOne('SELECT id, userId FROM admins WHERE id = ?', [adminId]);
     if (!existing) {
       res.status(404).json({ success: false, error: 'Admin not found' });
       return;
     }
 
-    run('UPDATE admins SET isActive = 0 WHERE id = ?', [adminId]);
-    run("UPDATE users SET role = 'student' WHERE id = ?", [existing.userId]);
+    await run('UPDATE admins SET isActive = 0 WHERE id = ?', [adminId]);
+    await run("UPDATE users SET role = 'student' WHERE id = ?", [existing.userId]);
 
     res.json({ success: true, message: 'Admin removed' });
   } catch (error) {
@@ -446,34 +445,34 @@ router.get('/statistics', async (req: Request, res: Response): Promise<void> => 
     if (period === '30d') days = 30;
     else if (period === '90d') days = 90;
 
-    const totalStudents = queryOne("SELECT COUNT(*) as count FROM users WHERE role = 'student'")?.count || 0;
-    const totalBooks = queryOne('SELECT COUNT(*) as count FROM books WHERE isActive = 1')?.count || 0;
-    const totalReadingSessions = queryOne('SELECT COUNT(*) as count FROM reading_sessions')?.count || 0;
-    const totalQuizResults = queryOne('SELECT COUNT(*) as count FROM quiz_results')?.count || 0;
-    const avgQuizScore = queryOne('SELECT COALESCE(AVG(score), 0) as avg FROM quiz_results')?.avg || 0;
-    const totalPoints = queryOne("SELECT COALESCE(SUM(points), 0) as total FROM points WHERE type = 'reading'")?.total || 0;
+    const totalStudents = (await queryOne("SELECT COUNT(*) as count FROM users WHERE role = 'student'"))?.count || 0;
+    const totalBooks = (await queryOne('SELECT COUNT(*) as count FROM books WHERE isActive = 1'))?.count || 0;
+    const totalReadingSessions = (await queryOne('SELECT COUNT(*) as count FROM reading_sessions'))?.count || 0;
+    const totalQuizResults = (await queryOne('SELECT COUNT(*) as count FROM quiz_results'))?.count || 0;
+    const avgQuizScore = (await queryOne('SELECT COALESCE(AVG(score), 0) as avg FROM quiz_results'))?.avg || 0;
+    const totalPoints = (await queryOne("SELECT COALESCE(SUM(points), 0) as total FROM points WHERE type = 'reading'"))?.total || 0;
 
     const readingByDay: { date: string; sessions: number; completions: number }[] = [];
     for (let i = days - 1; i >= 0; i--) {
       const date = new Date();
       date.setDate(date.getDate() - i);
       const dateStr = date.toISOString().split('T')[0];
-      const sessions = queryOne(
+      const sessions = (await queryOne(
         'SELECT COUNT(*) as count FROM reading_sessions WHERE DATE(startedAt) = ?',
         [dateStr]
-      )?.count || 0;
-      const completions = queryOne(
+      ))?.count || 0;
+      const completions = (await queryOne(
         'SELECT COUNT(*) as count FROM reading_progress WHERE isCompleted = 1 AND DATE(lastReadAt) = ?',
         [dateStr]
-      )?.count || 0;
+      ))?.count || 0;
       readingByDay.push({ date: dateStr, sessions: sessions as number, completions: completions as number });
     }
 
-    const topBooks = queryAll(
+    const topBooks = await queryAll(
       'SELECT id, title, author, readCount, favoriteCount, rating FROM books WHERE isActive = 1 ORDER BY readCount DESC LIMIT 10'
     );
 
-    const schoolStats = queryAll(
+    const schoolStats = await queryAll(
       `SELECT s.id, s.name, s.studentCount,
               COUNT(DISTINCT rs.id) as totalSessions,
               COUNT(DISTINCT rp.id) as completedBooks
@@ -517,7 +516,7 @@ router.post('/role-switch', async (req: Request, res: Response): Promise<void> =
       return;
     }
 
-    const user = queryOne('SELECT * FROM users WHERE id = ?', [userId]);
+    const user = await queryOne('SELECT * FROM users WHERE id = ?', [userId]);
     if (!user) {
       res.status(404).json({ success: false, error: 'User not found' });
       return;
@@ -562,7 +561,7 @@ router.get('/ic-whitelist', async (req: Request, res: Response): Promise<void> =
     }
 
     sql += ' ORDER BY ic.createdAt DESC';
-    const entries = queryAll(sql, params);
+    const entries = await queryAll(sql, params);
 
     res.json({ success: true, data: entries });
   } catch (error) {
@@ -578,16 +577,16 @@ router.post('/ic-whitelist', async (req: Request, res: Response): Promise<void> 
       return;
     }
 
-    const existing = queryOne('SELECT id FROM ic_whitelist WHERE icNumber = ?', [icNumber]);
+    const existing = await queryOne('SELECT id FROM ic_whitelist WHERE icNumber = ?', [icNumber]);
     if (existing) {
       res.status(409).json({ success: false, error: 'IC number already in whitelist' });
       return;
     }
 
     const id = uuidv4();
-    run('INSERT INTO ic_whitelist (id, icNumber, schoolId) VALUES (?, ?, ?)', [id, icNumber, schoolId]);
+    await run('INSERT INTO ic_whitelist (id, icNumber, schoolId) VALUES (?, ?, ?)', [id, icNumber, schoolId]);
 
-    const entry = queryOne(
+    const entry = await queryOne(
       'SELECT ic.*, s.name as schoolName FROM ic_whitelist ic JOIN schools s ON ic.schoolId = s.id WHERE ic.id = ?',
       [id]
     );
@@ -600,13 +599,13 @@ router.post('/ic-whitelist', async (req: Request, res: Response): Promise<void> 
 
 router.delete('/ic-whitelist/:id', async (req: Request, res: Response): Promise<void> => {
   try {
-    const existing = queryOne('SELECT id FROM ic_whitelist WHERE id = ?', [req.params.id]);
+    const existing = await queryOne('SELECT id FROM ic_whitelist WHERE id = ?', [req.params.id]);
     if (!existing) {
       res.status(404).json({ success: false, error: 'IC whitelist entry not found' });
       return;
     }
 
-    run('DELETE FROM ic_whitelist WHERE id = ?', [req.params.id]);
+    await run('DELETE FROM ic_whitelist WHERE id = ?', [req.params.id]);
     res.json({ success: true, message: 'IC whitelist entry deleted' });
   } catch (error) {
     res.status(500).json({ success: false, error: 'Failed to delete IC whitelist entry' });

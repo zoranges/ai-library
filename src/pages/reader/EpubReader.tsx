@@ -659,10 +659,16 @@ export default function EpubReader({ url, bookId, bookTitle, onProgressChange, o
                 笔记
               </button>
               <button
-                onClick={() => {
-                  setIsFavorite(!isFavorite);
-                  if (isFavorite) favoriteApi.removeFavorite(bookId);
-                  else favoriteApi.addFavorite(bookId);
+                onClick={async () => {
+                  try {
+                    if (isFavorite) {
+                      await favoriteApi.removeFavorite(bookId);
+                      setIsFavorite(false);
+                    } else {
+                      await favoriteApi.addFavorite(bookId);
+                      setIsFavorite(true);
+                    }
+                  } catch {}
                 }}
                 className="inline-flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-medium rounded-md transition-colors duration-150"
                 style={{

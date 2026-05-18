@@ -9,16 +9,16 @@ interface BadgeProps extends HTMLAttributes<HTMLSpanElement> {
 }
 
 const variantStyles: Record<string, string> = {
-  default: 'bg-bg-tertiary text-text-secondary',
-  accent: 'bg-accent/10 text-accent',
-  success: 'bg-success/10 text-success',
-  warning: 'bg-warning/10 text-warning',
-  error: 'bg-error/10 text-error',
+  default: 'bg-bg-tertiary text-text-secondary border border-border',
+  accent: 'bg-accent/10 text-accent border border-accent/20',
+  success: 'bg-success/10 text-success border border-success/20',
+  warning: 'bg-warning/10 text-warning border border-warning/20',
+  error: 'bg-error/10 text-error border border-error/20',
   outline: 'border border-border text-text-secondary',
 };
 
 const sizeStyles: Record<string, string> = {
-  sm: 'px-1.5 py-px text-[10px]',
+  sm: 'px-1.5 py-0.5 text-[10px]',
   md: 'px-2 py-0.5 text-xs',
 };
 

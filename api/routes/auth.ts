@@ -1,8 +1,14 @@
 import { Router, type Request, type Response } from 'express';
 import bcrypt from 'bcryptjs';
 import { v4 as uuidv4 } from 'uuid';
+import dotenv from 'dotenv';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import { queryOne, run, queryAll } from '../db/database.js';
 import { verifyToken, generateToken, generateRefreshToken, type JwtPayload } from '../middleware/auth.js';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+dotenv.config({ path: path.join(__dirname, '..', '..', '.env') });
 
 const router = Router();
 
@@ -14,7 +20,7 @@ router.post('/login', async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
-    const user = queryOne('SELECT * FROM users WHERE email = ?', [email]);
+    const user = await queryOne('SELECT * FROM users WHERE email = ?', [email]);
     if (!user) {
       res.status(401).json({ success: false, error: 'Invalid email or password' });
       return;
@@ -58,21 +64,21 @@ router.post('/register', async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
-    const existingUser = queryOne('SELECT id FROM users WHERE email = ?', [email]);
+    const existingUser = await queryOne('SELECT id FROM users WHERE email = ?', [email]);
     if (existingUser) {
       res.status(409).json({ success: false, error: 'Email already registered' });
       return;
     }
 
     if (icNumber) {
-      const icEntry = queryOne('SELECT * FROM ic_whitelist WHERE icNumber = ? AND schoolId = ?', [icNumber, schoolId]);
+      const icEntry = await queryOne('SELECT * FROM ic_whitelist WHERE icNumber = ? AND schoolId = ?', [icNumber, schoolId]);
       if (!icEntry) {
         res.status(400).json({ success: false, error: 'IC number not found in school whitelist' });
         return;
       }
     }
 
-    const school = queryOne('SELECT id FROM schools WHERE id = ? AND isActive = 1', [schoolId]);
+    const school = await queryOne('SELECT id FROM schools WHERE id = ? AND isActive = 1', [schoolId]);
     if (!school) {
       res.status(400).json({ success: false, error: 'Invalid or inactive school' });
       return;
@@ -81,12 +87,12 @@ router.post('/register', async (req: Request, res: Response): Promise<void> => {
     const hashedPassword = await bcrypt.hash(password, 10);
     const userId = uuidv4();
 
-    run(
+    await run(
       'INSERT INTO users (id, username, email, password, schoolId, grade, role, icNumber) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
       [userId, username, email, hashedPassword, schoolId, grade || null, 'student', icNumber || null]
     );
 
-    run('UPDATE schools SET studentCount = studentCount + 1 WHERE id = ?', [schoolId]);
+    await run('UPDATE schools SET studentCount = studentCount + 1 WHERE id = ?', [schoolId]);
 
     const payload: JwtPayload = {
       userId,
@@ -98,7 +104,7 @@ router.post('/register', async (req: Request, res: Response): Promise<void> => {
     const token = generateToken(payload);
     const refreshToken = generateRefreshToken(payload);
 
-    const user = queryOne('SELECT * FROM users WHERE id = ?', [userId]);
+    const user = await queryOne('SELECT * FROM users WHERE id = ?', [userId]);
     const { password: _, ...userWithoutPassword } = user!;
 
     res.status(201).json({
@@ -116,7 +122,7 @@ router.post('/register', async (req: Request, res: Response): Promise<void> => {
 
 router.get('/me', verifyToken, async (req: Request, res: Response): Promise<void> => {
   try {
-    const user = queryOne('SELECT * FROM users WHERE id = ?', [req.user!.userId]);
+    const user = await queryOne('SELECT * FROM users WHERE id = ?', [req.user!.userId]);
     if (!user) {
       res.status(404).json({ success: false, error: 'User not found' });
       return;
@@ -124,12 +130,12 @@ router.get('/me', verifyToken, async (req: Request, res: Response): Promise<void
 
     const { password: _, ...userWithoutPassword } = user;
 
-    const achievements = queryAll(
+    const achievements = await queryAll(
       'SELECT ua.*, a.name as achievementName, a.description as achievementDesc, a.icon, a.category, a.points, a.rarity FROM user_achievements ua JOIN achievements a ON ua.achievementId = a.id WHERE ua.userId = ?',
       [req.user!.userId]
     );
 
-    const badges = queryAll(
+    const badges = await queryAll(
       'SELECT ub.*, b.name as badgeName, b.description as badgeDesc, b.icon, b.category, b.rarity FROM user_badges ub JOIN badges b ON ub.badgeId = b.id WHERE ub.userId = ?',
       [req.user!.userId]
     );
@@ -152,11 +158,11 @@ router.put('/profile', verifyToken, async (req: Request, res: Response): Promise
     const userId = req.user!.userId;
     const { username, avatar, grade } = req.body;
 
-    if (username) run('UPDATE users SET username = ? WHERE id = ?', [username, userId]);
-    if (avatar) run('UPDATE users SET avatar = ? WHERE id = ?', [avatar, userId]);
-    if (grade) run('UPDATE users SET grade = ? WHERE id = ?', [grade, userId]);
+    if (username) await run('UPDATE users SET username = ? WHERE id = ?', [username, userId]);
+    if (avatar) await run('UPDATE users SET avatar = ? WHERE id = ?', [avatar, userId]);
+    if (grade) await run('UPDATE users SET grade = ? WHERE id = ?', [grade, userId]);
 
-    const user = queryOne('SELECT * FROM users WHERE id = ?', [userId]);
+    const user = await queryOne('SELECT * FROM users WHERE id = ?', [userId]);
     const { password: _, ...userWithoutPassword } = user!;
     res.json({ success: true, data: userWithoutPassword });
   } catch (error) {
@@ -174,7 +180,7 @@ router.put('/password', verifyToken, async (req: Request, res: Response): Promis
       return;
     }
 
-    const user = queryOne('SELECT * FROM users WHERE id = ?', [userId]);
+    const user = await queryOne('SELECT * FROM users WHERE id = ?', [userId]);
     if (!user) {
       res.status(404).json({ success: false, error: 'User not found' });
       return;
@@ -187,7 +193,7 @@ router.put('/password', verifyToken, async (req: Request, res: Response): Promis
     }
 
     const hashedPassword = await bcrypt.hash(newPassword, 10);
-    run('UPDATE users SET password = ? WHERE id = ?', [hashedPassword, userId]);
+    await run('UPDATE users SET password = ? WHERE id = ?', [hashedPassword, userId]);
 
     res.json({ success: true, message: 'Password updated successfully' });
   } catch (error) {
@@ -204,9 +210,10 @@ router.post('/refresh', async (req: Request, res: Response): Promise<void> => {
     }
 
     const jwt = await import('jsonwebtoken');
-    const decoded = jwt.verify(refreshToken, 'ai-library-secret-key-2024') as JwtPayload;
+    const JWT_SECRET = process.env.JWT_SECRET || 'ai-library-secret-key-2024';
+    const decoded = jwt.verify(refreshToken, JWT_SECRET) as JwtPayload;
 
-    const user = queryOne('SELECT * FROM users WHERE id = ?', [decoded.userId]);
+    const user = await queryOne('SELECT * FROM users WHERE id = ?', [decoded.userId]);
     if (!user) {
       res.status(401).json({ success: false, error: 'User not found' });
       return;

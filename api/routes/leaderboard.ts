@@ -34,7 +34,7 @@ router.get('/', verifyToken, async (req: Request, res: Response): Promise<void> 
     sql += ` ORDER BY ${orderBy} LIMIT ?`;
     params.push(limitNum);
 
-    const entries = queryAll(sql, params);
+    const entries = await queryAll(sql, params);
 
     const leaderboard = entries.map((entry, index) => ({
       rank: index + 1,
@@ -61,10 +61,10 @@ router.get('/', verifyToken, async (req: Request, res: Response): Promise<void> 
 
 router.get('/achievements', verifyToken, async (req: Request, res: Response): Promise<void> => {
   try {
-    const achievements = queryAll('SELECT * FROM achievements ORDER BY points DESC');
+    const achievements = await queryAll('SELECT * FROM achievements ORDER BY points DESC');
 
     const userId = req.user!.userId;
-    const userAchievements = queryAll(
+    const userAchievements = await queryAll(
       'SELECT achievementId FROM user_achievements WHERE userId = ?',
       [userId]
     );
@@ -86,21 +86,21 @@ router.post('/achievements/:id/unlock', verifyToken, async (req: Request, res: R
     const userId = req.user!.userId;
     const achievementId = req.params.id;
 
-    const achievement = queryOne('SELECT * FROM achievements WHERE id = ?', [achievementId]);
+    const achievement = await queryOne('SELECT * FROM achievements WHERE id = ?', [achievementId]);
     if (!achievement) {
       res.status(404).json({ success: false, error: 'Achievement not found' });
       return;
     }
 
-    const existing = queryOne('SELECT id FROM user_achievements WHERE userId = ? AND achievementId = ?', [userId, achievementId]);
+    const existing = await queryOne('SELECT id FROM user_achievements WHERE userId = ? AND achievementId = ?', [userId, achievementId]);
     if (existing) {
       res.status(409).json({ success: false, error: 'Achievement already unlocked' });
       return;
     }
 
-    run('INSERT INTO user_achievements (id, userId, achievementId) VALUES (?, ?, ?)', [uuidv4(), userId, achievementId]);
-    run('UPDATE users SET points = points + ? WHERE id = ?', [achievement.points, userId]);
-    run(
+    await run('INSERT INTO user_achievements (id, userId, achievementId) VALUES (?, ?, ?)', [uuidv4(), userId, achievementId]);
+    await run('UPDATE users SET points = points + ? WHERE id = ?', [achievement.points, userId]);
+    await run(
       'INSERT INTO points (id, userId, points, type, description, referenceId) VALUES (?, ?, ?, ?, ?, ?)',
       [uuidv4(), userId, achievement.points, 'achievement', `Unlocked achievement: ${achievement.name}`, achievementId]
     );
@@ -113,10 +113,10 @@ router.post('/achievements/:id/unlock', verifyToken, async (req: Request, res: R
 
 router.get('/badges', verifyToken, async (req: Request, res: Response): Promise<void> => {
   try {
-    const badges = queryAll('SELECT * FROM badges');
+    const badges = await queryAll('SELECT * FROM badges');
 
     const userId = req.user!.userId;
-    const userBadges = queryAll(
+    const userBadges = await queryAll(
       'SELECT badgeId, isEquipped FROM user_badges WHERE userId = ?',
       [userId]
     );
@@ -139,14 +139,14 @@ router.post('/badges/:id/equip', verifyToken, async (req: Request, res: Response
     const userId = req.user!.userId;
     const badgeId = req.params.id;
 
-    const userBadge = queryOne('SELECT id FROM user_badges WHERE userId = ? AND badgeId = ?', [userId, badgeId]);
+    const userBadge = await queryOne('SELECT id FROM user_badges WHERE userId = ? AND badgeId = ?', [userId, badgeId]);
     if (!userBadge) {
       res.status(404).json({ success: false, error: 'Badge not owned' });
       return;
     }
 
-    run('UPDATE user_badges SET isEquipped = 0 WHERE userId = ?', [userId]);
-    run('UPDATE user_badges SET isEquipped = 1 WHERE userId = ? AND badgeId = ?', [userId, badgeId]);
+    await run('UPDATE user_badges SET isEquipped = 0 WHERE userId = ?', [userId]);
+    await run('UPDATE user_badges SET isEquipped = 1 WHERE userId = ? AND badgeId = ?', [userId, badgeId]);
 
     res.json({ success: true, data: { badgeId, isEquipped: true } });
   } catch (error) {
@@ -163,12 +163,12 @@ router.get('/points', verifyToken, async (req: Request, res: Response): Promise<
     const pageSizeNum = Math.min(50, Math.max(1, parseInt(pageSize as string)));
     const offset = (pageNum - 1) * pageSizeNum;
 
-    const countResult = queryOne('SELECT COUNT(*) as total FROM points WHERE userId = ?', [userId]);
+    const countResult = await queryOne('SELECT COUNT(*) as total FROM points WHERE userId = ?', [userId]);
     const total = countResult ? (countResult.total as number) : 0;
 
-    const points = queryAll(
-      `SELECT * FROM points WHERE userId = ? ORDER BY createdAt DESC LIMIT ${pageSizeNum} OFFSET ${offset}`,
-      [userId]
+    const points = await queryAll(
+      `SELECT * FROM points WHERE userId = ? ORDER BY createdAt DESC LIMIT ? OFFSET ?`,
+      [userId, pageSizeNum, offset]
     );
 
     res.json({

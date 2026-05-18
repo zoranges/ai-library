@@ -32,35 +32,30 @@ export default function ForgotPassword() {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-bg-secondary p-4">
-      <div className="w-full max-w-[420px] animate-slide-up">
-        <div className="bg-bg-primary rounded-2xl border border-border shadow-card p-8">
+      <div className="w-full max-w-[420px] animate-fade-in">
+        <div className="bg-bg-primary rounded-xl border border-border shadow-1 p-8">
           {isSent ? (
             <div className="text-center animate-fade-in">
-              <div className="inline-flex items-center justify-center w-12 h-12 bg-success/10 rounded-full mb-4">
-                <div className="relative">
-                  <Check className="w-5 h-5 text-success" strokeWidth={2} style={{
-                    strokeDasharray: 24,
-                    animation: 'checkmark-draw 0.4s ease-out forwards',
-                  }} />
-                </div>
+              <div className="inline-flex items-center justify-center w-14 h-14 bg-success/10 rounded-full mb-4">
+                <Mail className="w-8 h-8 text-success" strokeWidth={1.5} />
               </div>
-              <h2 className="text-lg font-bold text-text-primary font-heading">Check your email</h2>
+              <h2 className="text-lg font-bold text-text-primary font-heading">Check Your Email</h2>
               <p className="text-[13px] text-text-tertiary mt-2 mb-6 leading-relaxed">
-                We&apos;ve sent a reset link to <span className="text-text-primary font-medium">{email}</span>
+                Reset link sent to <span className="text-text-primary font-bold">{email}</span>
               </p>
               <Link to="/login">
-                <Button variant="primary" fullWidth className="h-11 rounded-lg">Back to sign in</Button>
+                <Button variant="primary" fullWidth className="h-11 rounded-lg font-semibold">Back to Login</Button>
               </Link>
             </div>
           ) : (
             <>
               <div className="flex justify-center mb-5">
-                <div className="w-10 h-10 bg-bg-tertiary rounded-xl flex items-center justify-center">
-                  <Lock className="w-4.5 h-4.5 text-text-tertiary" strokeWidth={1.5} />
+                <div className="w-12 h-12 bg-accent/10 rounded-xl flex items-center justify-center">
+                  <Lock className="w-6 h-6 text-accent" strokeWidth={1.5} />
                 </div>
               </div>
-              <h2 className="text-lg font-bold text-text-primary font-heading text-center">Reset password</h2>
-              <p className="text-[13px] text-text-tertiary mt-1.5 mb-6 text-center">Enter your email and we&apos;ll send you a reset link</p>
+              <h2 className="text-lg font-extrabold text-text-primary font-heading text-center">Reset Password</h2>
+              <p className="text-[13px] text-text-tertiary mt-1.5 mb-6 text-center">Enter your email and we will send you a reset link</p>
 
               {error && (
                 <div className="mb-4 px-3 py-2.5 bg-error/5 border border-error/15 rounded-lg text-[13px] text-error">
@@ -79,8 +74,8 @@ export default function ForgotPassword() {
                   error={error && !email ? error : undefined}
                   required
                 />
-                <Button type="submit" fullWidth size="lg" loading={isLoading} className="h-11 rounded-lg">
-                  Send reset link
+                <Button type="submit" fullWidth size="lg" loading={isLoading} className="h-11 rounded-lg font-semibold">
+                  Send Reset Link
                 </Button>
               </form>
             </>
@@ -89,10 +84,9 @@ export default function ForgotPassword() {
           {!isSent && (
             <Link
               to="/login"
-              className="mt-5 flex items-center justify-center gap-1.5 text-[13px] text-text-tertiary hover:text-accent transition-colors"
+              className="mt-5 flex items-center justify-center gap-1.5 text-[13px] font-medium text-text-tertiary hover:text-accent transition-colors"
             >
-              <ArrowLeft className="h-3.5 w-3.5" strokeWidth={1.5} />
-              Back to sign in
+              ← Back to Login
             </Link>
           )}
         </div>

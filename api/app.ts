@@ -1,6 +1,7 @@
 import express, { type Request, type Response, type NextFunction } from 'express';
 import cors from 'cors';
 import path from 'path';
+import fs from 'fs';
 import { fileURLToPath } from 'url';
 import authRoutes from './routes/auth.js';
 import booksRoutes from './routes/books.js';
@@ -27,6 +28,9 @@ app.use('/api', (_req: Request, res: Response, next: NextFunction): void => {
 
 app.use('/uploads', express.static(path.join(__dirname, '..', 'uploads')));
 
+const distPath = path.join(__dirname, '..', 'dist');
+app.use(express.static(distPath));
+
 app.use('/api/auth', authRoutes);
 app.use('/api/books', booksRoutes);
 app.use('/api/reading', readingRoutes);
@@ -45,7 +49,12 @@ app.use((error: Error, _req: Request, res: Response, _next: NextFunction): void 
 });
 
 app.use((_req: Request, res: Response): void => {
-  res.status(404).json({ success: false, error: 'API not found' });
+  const indexPath = path.join(__dirname, '..', 'dist', 'index.html');
+  if (fs.existsSync(indexPath)) {
+    res.sendFile(indexPath);
+  } else {
+    res.status(404).json({ success: false, error: 'API not found' });
+  }
 });
 
 export default app;

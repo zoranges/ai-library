@@ -87,6 +87,11 @@ export default function Reader() {
   const textLayerRef = useRef<TextLayer | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const renderTaskRef = useRef<any>(null);
+  const currentPageRef = useRef(currentPage);
+
+  useEffect(() => {
+    currentPageRef.current = currentPage;
+  }, [currentPage]);
 
   useEffect(() => {
     if (id) {
@@ -100,7 +105,7 @@ export default function Reader() {
       }).catch(() => {});
     }
     return () => {
-      if (id) endSession(id, currentPage, currentPage);
+      if (id) endSession(id, currentPageRef.current, currentPageRef.current);
     };
   }, [id]);
 
@@ -858,12 +863,17 @@ export default function Reader() {
                 笔记
               </button>
               <button
-                onClick={() => {
-                  setIsFavorite(!isFavorite);
-                  if (id) {
-                    if (isFavorite) favoriteApi.removeFavorite(id);
-                    else favoriteApi.addFavorite(id);
-                  }
+                onClick={async () => {
+                  if (!id) return;
+                  try {
+                    if (isFavorite) {
+                      await favoriteApi.removeFavorite(id);
+                      setIsFavorite(false);
+                    } else {
+                      await favoriteApi.addFavorite(id);
+                      setIsFavorite(true);
+                    }
+                  } catch {}
                 }}
                 className="inline-flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-medium rounded-md transition-colors duration-150"
                 style={{

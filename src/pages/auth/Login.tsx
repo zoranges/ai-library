@@ -30,23 +30,20 @@ export default function Login() {
 
   return (
     <div className="min-h-screen flex">
-      <div className="hidden lg:flex lg:w-[480px] xl:lg:w-[520px] relative items-center justify-center overflow-hidden" style={{ background: 'linear-gradient(160deg, oklch(0.82 0.14 240), oklch(0.78 0.16 30), oklch(0.80 0.14 155))' }}>
-        <div className="absolute top-16 left-16 w-32 h-16 bg-white/10 rounded-full animate-cloud" />
-        <div className="absolute top-28 right-24 w-24 h-10 bg-white/10 rounded-full animate-cloud" style={{ animationDelay: '2s' }} />
-        <div className="absolute bottom-32 left-20 w-28 h-12 bg-white/10 rounded-full animate-cloud" style={{ animationDelay: '4s' }} />
-        <div className="absolute top-8 right-12 text-3xl animate-star" style={{ animationDelay: '0.5s' }}>⭐</div>
-        <div className="absolute bottom-20 right-16 text-2xl animate-star" style={{ animationDelay: '1.2s' }}>✨</div>
-        <div className="absolute top-1/2 left-8 text-2xl animate-float" style={{ animationDelay: '0.8s' }}>📖</div>
-        <div className="relative z-10 px-12 animate-bounce-in">
+      <div className="hidden lg:flex lg:w-[480px] xl:lg:w-[520px] relative items-center justify-center overflow-hidden hero-gradient">
+        <div className="absolute inset-0 bg-black/10" />
+        <div className="relative z-10 px-12 animate-fade-in">
           <div className="flex items-center gap-2.5 mb-10">
-            <span className="text-3xl">🌟</span>
-            <span className="text-xl font-black text-white/90 font-heading tracking-tight">AI 小书屋</span>
+            <div className="h-10 w-10 bg-white/20 rounded-xl flex items-center justify-center">
+              <BookOpen className="h-5 w-5 text-white" strokeWidth={2} />
+            </div>
+            <span className="text-xl font-black text-white font-heading tracking-tight">AI Library</span>
           </div>
           <h1 className="text-[40px] font-black text-white font-heading leading-[1.15] tracking-tight drop-shadow-lg">
-            开启你的<br />阅读冒险 🚀
+            Start Your<br />Reading Journey
           </h1>
-          <p className="mt-5 text-[15px] text-white/60 leading-relaxed max-w-[280px] font-semibold">
-            和 AI 小助手一起，发现精彩故事，探索奇妙世界！
+          <p className="mt-5 text-[15px] text-white/70 leading-relaxed max-w-[280px] font-medium">
+            Discover amazing stories and explore wonderful worlds with your AI reading assistant!
           </p>
         </div>
       </div>
@@ -54,12 +51,14 @@ export default function Login() {
       <div className="flex-1 flex items-center justify-center p-6 sm:p-8 bg-bg-primary">
         <div className="w-full max-w-[380px] animate-slide-up">
           <div className="lg:hidden flex items-center gap-2 mb-10">
-            <BookOpen className="h-5 w-5 text-accent" strokeWidth={1.5} />
-            <span className="text-lg font-extrabold text-text-primary font-heading tracking-tight">🌟 AI 小书屋</span>
+            <div className="h-8 w-8 bg-accent rounded-lg flex items-center justify-center">
+              <BookOpen className="h-4 w-4 text-white" strokeWidth={2} />
+            </div>
+            <span className="text-lg font-extrabold text-text-primary font-heading tracking-tight">AI Library</span>
           </div>
 
-          <h2 className="text-[22px] font-extrabold text-text-primary font-heading">欢迎回来 👋</h2>
-          <p className="text-[14px] text-text-tertiary mt-1.5 mb-7">继续你的阅读之旅吧</p>
+          <h2 className="text-[22px] font-extrabold text-text-primary font-heading">Welcome Back</h2>
+          <p className="text-[14px] text-text-tertiary mt-1.5 mb-7">Continue your reading journey</p>
 
           {error && (
             <div className="mb-5 px-3 py-2.5 bg-error/5 border border-error/15 rounded-lg text-[13px] text-error">
@@ -69,7 +68,7 @@ export default function Login() {
 
           <form onSubmit={handleSubmit} className="space-y-5">
             <Input
-              label="邮箱"
+              label="Email"
               type="email"
               placeholder="you@example.com"
               value={email}
@@ -79,9 +78,9 @@ export default function Login() {
             />
             <div className="relative">
               <Input
-                label="密码"
+                label="Password"
                 type={showPassword ? 'text' : 'password'}
-                placeholder="输入密码"
+                placeholder="Enter password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 icon={<Lock className="h-4 w-4" strokeWidth={1.5} />}
@@ -102,15 +101,15 @@ export default function Login() {
                   type="checkbox"
                   className="w-3.5 h-3.5 rounded border-border text-accent focus:ring-accent/20"
                 />
-                <span className="text-[13px] text-text-secondary">记住我</span>
+                <span className="text-[13px] text-text-secondary">Remember me</span>
               </label>
               <Link to="/forgot-password" className="text-[13px] text-accent hover:text-accent-dark transition-colors">
-                忘记密码？
+                Forgot password?
               </Link>
             </div>
 
-            <Button type="submit" fullWidth size="lg" loading={isLoading} className="h-12 rounded-2xl text-[15px] font-bold">
-              🚀 登录
+            <Button type="submit" fullWidth size="lg" loading={isLoading} className="h-12 rounded-lg text-[15px] font-semibold">
+              Login
             </Button>
           </form>
 
@@ -139,16 +138,16 @@ export default function Login() {
           </div>
 
           <p className="mt-7 text-center text-[13px] text-text-tertiary">
-            还没有账号？{' '}
+            Don't have an account?{' '}
             <Link to="/register" className="text-accent hover:text-accent-dark font-medium transition-colors">
-              注册一个
+              Sign up
             </Link>
           </p>
 
           <div className="mt-4 pt-4 border-t border-border text-center">
             <Link to="/admin/login" className="inline-flex items-center gap-1.5 text-[12px] text-text-tertiary hover:text-accent transition-colors">
               <Shield className="h-3.5 w-3.5" strokeWidth={1.5} />
-              管理员登录
+              Admin Login
             </Link>
           </div>
         </div>

@@ -13,21 +13,21 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 
 const variantStyles: Record<string, string> = {
   primary:
-    'bg-accent text-surface hover:bg-accent-hover active:bg-accent-hover cartoon-btn cartoon-shadow',
+    'bg-accent text-white hover:bg-accent-hover active:bg-accent-hover shadow-1',
   secondary:
-    'bg-accent-subtle text-accent hover:bg-accent-subtle/80 active:bg-accent-subtle/60 cartoon-btn',
+    'bg-accent/10 text-accent hover:bg-accent/15 active:bg-accent/5',
   outline:
-    'border-[3px] border-border-strong text-text hover:bg-surface-raised active:bg-surface-raised/60 cartoon-btn bubble-border',
+    'border border-border text-text hover:bg-bg-tertiary active:bg-bg-tertiary',
   ghost:
-    'text-text-secondary hover:bg-surface-raised active:bg-surface-raised/60',
+    'text-text-secondary hover:bg-bg-tertiary active:bg-bg-tertiary',
   danger:
-    'bg-error text-surface hover:opacity-90 active:opacity-90 cartoon-btn',
+    'bg-error text-white hover:opacity-90 active:opacity-90 shadow-1',
 };
 
 const sizeStyles: Record<string, string> = {
-  sm: 'h-8 px-3 text-xs gap-1.5 rounded-xl',
-  md: 'h-9 px-4 text-sm gap-2 rounded-xl',
-  lg: 'h-10 px-5 text-sm gap-2 rounded-2xl',
+  sm: 'h-8 px-3 text-xs gap-1.5 rounded-lg',
+  md: 'h-9 px-4 text-sm gap-2 rounded-lg',
+  lg: 'h-10 px-5 text-sm gap-2 rounded-lg',
 };
 
 const Button = forwardRef<HTMLButtonElement, ButtonProps>(

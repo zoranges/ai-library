@@ -74,21 +74,21 @@ export const useReadingStore = create<ReadingState>((set, get) => ({
     set({ isReading: false, sessionStart: null });
     try {
       await readingApi.createSession({ bookId, startPage, endPage, duration, startedAt: sessionStart, endedAt: new Date().toISOString() });
-    } catch {}
+    } catch { /* non-critical: session tracking failure shouldn't block reading */ }
   },
 
   fetchHighlights: async (bookId) => {
     try {
       const res = await readingApi.getHighlights(bookId);
       set({ highlights: res.data });
-    } catch {}
+    } catch { /* highlights fetch is non-blocking */ }
   },
 
   addHighlight: async (data) => {
     try {
       const res = await readingApi.addHighlight(data);
       set((state) => ({ highlights: [...state.highlights, res.data] }));
-    } catch {}
+    } catch { /* highlight save failure is non-blocking */ }
   },
 
   clearCurrent: () => {

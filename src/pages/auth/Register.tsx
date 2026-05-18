@@ -7,9 +7,9 @@ import Select from '@/components/ui/Select';
 import { useAuthStore } from '@/stores/authStore';
 
 const STEPS = [
-  { key: 'account', label: '账号' },
-  { key: 'identity', label: '身份' },
-  { key: 'preference', label: '语言' },
+  { key: 'account', label: 'Account' },
+  { key: 'identity', label: 'Identity' },
+  { key: 'preference', label: 'Language' },
 ];
 
 const SCHOOL_OPTIONS = [
@@ -50,23 +50,23 @@ export default function Register() {
 
   function validateStep0(): boolean {
     const errs: Record<string, string> = {};
-    if (!form.username.trim()) errs.username = '请输入用户名';
-    if (!form.email.trim()) errs.email = '请输入邮箱';
-    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) errs.email = '邮箱格式不正确';
-    if (!form.password) errs.password = '请输入密码';
-    else if (form.password.length < 6) errs.password = '密码至少6个字符';
-    if (form.password !== form.confirmPassword) errs.confirmPassword = '两次密码不一致';
+    if (!form.username.trim()) errs.username = 'Please enter a username';
+    if (!form.email.trim()) errs.email = 'Please enter your email';
+    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) errs.email = 'Invalid email format';
+    if (!form.password) errs.password = 'Please enter a password';
+    else if (form.password.length < 6) errs.password = 'Password must be at least 6 characters';
+    if (form.password !== form.confirmPassword) errs.confirmPassword = 'Passwords do not match';
     setErrors(errs);
     return Object.keys(errs).length === 0;
   }
 
   function validateStep1(): boolean {
     const errs: Record<string, string> = {};
-    if (!form.icNumber.trim()) errs.icNumber = '请输入IC号码';
+    if (!form.icNumber.trim()) errs.icNumber = 'Please enter your IC number';
     else if (!/^\d{6}-\d{2}-\d{4}$/.test(form.icNumber) && !/^\d{12}$/.test(form.icNumber.replace(/-/g, ''))) {
-      errs.icNumber = '格式：010101-01-1234';
+      errs.icNumber = 'Format: 010101-01-1234';
     }
-    if (!form.schoolId) errs.schoolId = '请选择学校';
+    if (!form.schoolId) errs.schoolId = 'Please select a school';
     setErrors(errs);
     return Object.keys(errs).length === 0;
   }
@@ -95,23 +95,20 @@ export default function Register() {
 
   return (
     <div className="min-h-screen flex">
-      <div className="hidden lg:flex lg:w-[480px] xl:lg:w-[520px] relative items-center justify-center overflow-hidden" style={{ background: 'linear-gradient(160deg, oklch(0.80 0.14 155), oklch(0.78 0.16 30), oklch(0.82 0.14 240))' }}>
-        <div className="absolute top-16 left-16 w-32 h-16 bg-white/10 rounded-full animate-cloud" />
-        <div className="absolute top-28 right-24 w-24 h-10 bg-white/10 rounded-full animate-cloud" style={{ animationDelay: '2s' }} />
-        <div className="absolute bottom-32 left-20 w-28 h-12 bg-white/10 rounded-full animate-cloud" style={{ animationDelay: '4s' }} />
-        <div className="absolute top-8 right-12 text-3xl animate-star" style={{ animationDelay: '0.5s' }}>🎉</div>
-        <div className="absolute bottom-20 right-16 text-2xl animate-star" style={{ animationDelay: '1.2s' }}>⭐</div>
-        <div className="absolute top-1/2 left-8 text-2xl animate-float" style={{ animationDelay: '0.8s' }}>📚</div>
-        <div className="relative z-10 px-12 animate-bounce-in">
+      <div className="hidden lg:flex lg:w-[480px] xl:lg:w-[520px] relative items-center justify-center overflow-hidden hero-gradient">
+        <div className="absolute inset-0 bg-black/10" />
+        <div className="relative z-10 px-12 animate-fade-in">
           <div className="flex items-center gap-2.5 mb-10">
-            <span className="text-3xl">🌟</span>
-            <span className="text-xl font-black text-white/90 font-heading tracking-tight">AI 小书屋</span>
+            <div className="h-10 w-10 bg-white/20 rounded-xl flex items-center justify-center">
+              <BookOpen className="h-5 w-5 text-white" strokeWidth={2} />
+            </div>
+            <span className="text-xl font-black text-white font-heading tracking-tight">AI Library</span>
           </div>
           <h1 className="text-[40px] font-black text-white font-heading leading-[1.15] tracking-tight drop-shadow-lg">
-            加入<br />阅读大家庭 🎈
+            Join the<br />Reading Community
           </h1>
-          <p className="mt-5 text-[15px] text-white/60 leading-relaxed max-w-[280px] font-semibold">
-            注册账号，和 AI 小助手一起开启奇妙的阅读之旅！
+          <p className="mt-5 text-[15px] text-white/70 leading-relaxed max-w-[280px] font-medium">
+            Create an account and explore wonderful stories with your AI reading assistant!
           </p>
         </div>
       </div>
@@ -119,12 +116,14 @@ export default function Register() {
       <div className="flex-1 flex items-center justify-center p-6 sm:p-8 bg-bg-primary">
         <div className="w-full max-w-[380px] animate-slide-up">
           <div className="lg:hidden flex items-center gap-2 mb-10">
-            <BookOpen className="h-5 w-5 text-accent" strokeWidth={1.5} />
-            <span className="text-lg font-extrabold text-text-primary font-heading tracking-tight">🌟 AI 小书屋</span>
+            <div className="h-8 w-8 bg-accent rounded-lg flex items-center justify-center">
+              <BookOpen className="h-4 w-4 text-white" strokeWidth={2} />
+            </div>
+            <span className="text-lg font-extrabold text-text-primary font-heading tracking-tight">AI Library</span>
           </div>
 
-          <h2 className="text-[22px] font-extrabold text-text-primary font-heading">创建账号 ✨</h2>
-          <p className="text-[14px] text-text-tertiary mt-1.5 mb-6">填写信息，开始你的阅读之旅</p>
+          <h2 className="text-[22px] font-extrabold text-text-primary font-heading">Create Account</h2>
+          <p className="text-[14px] text-text-tertiary mt-1.5 mb-6">Fill in your details to get started</p>
 
           <div className="flex items-center gap-1 mb-7">
             {STEPS.map((s, i) => (
@@ -156,15 +155,15 @@ export default function Register() {
             {step === 0 && (
               <div className="space-y-4 animate-fade-in">
                 <Input
-                  label="用户名"
-                  placeholder="选一个好听的名字"
+                  label="Username"
+                  placeholder="Choose a username"
                   value={form.username}
                   onChange={(e) => updateForm('username', e.target.value)}
                   icon={<User className="h-4 w-4" strokeWidth={1.5} />}
                   error={errors.username}
                 />
                 <Input
-                  label="邮箱"
+                  label="Email"
                   type="email"
                   placeholder="you@example.com"
                   value={form.email}
@@ -173,18 +172,18 @@ export default function Register() {
                   error={errors.email}
                 />
                 <Input
-                  label="密码"
+                  label="Password"
                   type="password"
-                  placeholder="至少6个字符"
+                  placeholder="At least 6 characters"
                   value={form.password}
                   onChange={(e) => updateForm('password', e.target.value)}
                   icon={<Lock className="h-4 w-4" strokeWidth={1.5} />}
                   error={errors.password}
                 />
                 <Input
-                  label="确认密码"
+                  label="Confirm Password"
                   type="password"
-                  placeholder="再输入一次密码"
+                  placeholder="Enter password again"
                   value={form.confirmPassword}
                   onChange={(e) => updateForm('confirmPassword', e.target.value)}
                   icon={<Lock className="h-4 w-4" strokeWidth={1.5} />}
@@ -197,7 +196,7 @@ export default function Register() {
               <div className="space-y-4 animate-fade-in">
                 <div className="relative">
                   <Input
-                    label="IC 号码"
+                    label="IC Number"
                     placeholder="010101-01-1234"
                     value={form.icNumber}
                     onChange={(e) => updateForm('icNumber', e.target.value)}
@@ -215,13 +214,13 @@ export default function Register() {
                     </button>
                     {showIcTooltip && (
                       <div className="absolute right-0 top-6 w-48 px-2.5 py-1.5 bg-text-primary text-[11px] text-white/90 rounded-lg shadow-lg z-10">
-                        马来西亚身份证号码 (MyKad)
+                        Malaysian Identity Card Number (MyKad)
                       </div>
                     )}
                   </div>
                 </div>
                 <Select
-                  label="学校"
+                  label="School"
                   options={SCHOOL_OPTIONS}
                   value={form.schoolId}
                   onChange={(v) => updateForm('schoolId', v)}
@@ -234,7 +233,7 @@ export default function Register() {
             {step === 2 && (
               <div className="space-y-5 animate-fade-in">
                 <div>
-                  <label className="text-sm font-medium text-text-primary mb-2 block">偏好语言</label>
+                  <label className="text-sm font-medium text-text-primary mb-2 block">Preferred Language</label>
                   <div className="flex gap-1.5">
                     {LANGUAGE_OPTIONS.map((lang) => (
                       <button
@@ -251,7 +250,7 @@ export default function Register() {
                       </button>
                     ))}
                   </div>
-                  <p className="text-[11px] text-text-tertiary mt-2">之后可以在设置中修改</p>
+                  <p className="text-[11px] text-text-tertiary mt-2">You can change this later in settings</p>
                 </div>
               </div>
             )}
@@ -264,24 +263,24 @@ export default function Register() {
                   onClick={() => setStep((s) => s - 1)}
                   icon={<ChevronLeft className="h-4 w-4" strokeWidth={1.5} />}
                 >
-                  返回
+                  Back
                 </Button>
               )}
               <div className="flex-1" />
               {step < STEPS.length - 1 ? (
                 <Button type="button" onClick={handleNext} icon={<ChevronRight className="h-4 w-4" strokeWidth={1.5} />} iconPosition="right">
-                  继续
+                  Next
                 </Button>
               ) : (
-                <Button type="submit" loading={isLoading} className="h-12 rounded-2xl text-[15px] font-bold">🎉 创建账号</Button>
+                <Button type="submit" loading={isLoading} className="h-12 rounded-lg text-[15px] font-semibold">Create Account</Button>
               )}
             </div>
           </form>
 
           <p className="mt-7 text-center text-[13px] text-text-tertiary">
-            已有账号？{' '}
+            Already have an account?{' '}
             <Link to="/login" className="text-accent hover:text-accent-dark font-medium transition-colors">
-              去登录
+              Log in
             </Link>
           </p>
         </div>

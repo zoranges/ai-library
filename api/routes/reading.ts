@@ -8,7 +8,7 @@ const router = Router();
 router.get('/progress', verifyToken, async (req: Request, res: Response): Promise<void> => {
   try {
     const userId = req.user!.userId;
-    const progress = queryAll(
+    const progress = await queryAll(
       `SELECT rp.*, b.title, b.author, b.coverUrl, b.pageCount as bookPageCount, b.language, b.difficulty,
               c.name as categoryName, c.icon as categoryIcon, c.color as categoryColor
        FROM reading_progress rp
@@ -47,7 +47,7 @@ router.get('/progress', verifyToken, async (req: Request, res: Response): Promis
 router.get('/progress/:bookId', verifyToken, async (req: Request, res: Response): Promise<void> => {
   try {
     const userId = req.user!.userId;
-    const progress = queryOne(
+    const progress = await queryOne(
       `SELECT rp.*, b.title, b.author, b.coverUrl, b.pageCount as bookPageCount
        FROM reading_progress rp
        JOIN books b ON rp.bookId = b.id
@@ -76,7 +76,7 @@ router.post('/progress', verifyToken, async (req: Request, res: Response): Promi
       return;
     }
 
-    const book = queryOne('SELECT id, pageCount FROM books WHERE id = ?', [bookId]);
+    const book = await queryOne('SELECT id, pageCount FROM books WHERE id = ?', [bookId]);
     if (!book) {
       res.status(404).json({ success: false, error: 'Book not found' });
       return;
@@ -86,30 +86,30 @@ router.post('/progress', verifyToken, async (req: Request, res: Response): Promi
     const isCompleted = currentPage >= totalPages ? 1 : 0;
     const now = new Date().toISOString();
 
-    const existing = queryOne('SELECT id FROM reading_progress WHERE userId = ? AND bookId = ?', [userId, bookId]);
+    const existing = await queryOne('SELECT id FROM reading_progress WHERE userId = ? AND bookId = ?', [userId, bookId]);
 
     if (existing) {
-      run(
+      await run(
         'UPDATE reading_progress SET currentPage = ?, totalPages = ?, percentage = ?, lastReadAt = ?, isCompleted = ?, lastPosition = ? WHERE userId = ? AND bookId = ?',
         [currentPage, totalPages, percentage, now, isCompleted, lastPosition || null, userId, bookId]
       );
     } else {
-      run(
+      await run(
         'INSERT INTO reading_progress (id, userId, bookId, currentPage, totalPages, percentage, lastReadAt, isCompleted, startedAt, lastPosition) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
         [uuidv4(), userId, bookId, currentPage, totalPages, percentage, now, isCompleted, now, lastPosition || null]
       );
-      run('UPDATE books SET readCount = readCount + 1 WHERE id = ?', [bookId]);
+      await run('UPDATE books SET readCount = readCount + 1 WHERE id = ?', [bookId]);
     }
 
     if (isCompleted) {
-      run('UPDATE users SET points = points + 10 WHERE id = ?', [userId]);
-      run(
+      await run('UPDATE users SET points = points + 10 WHERE id = ?', [userId]);
+      await run(
         'INSERT INTO points (id, userId, points, type, description, referenceId) VALUES (?, ?, ?, ?, ?, ?)',
         [uuidv4(), userId, 10, 'reading', 'Completed reading a book', bookId]
       );
     }
 
-    const updated = queryOne('SELECT * FROM reading_progress WHERE userId = ? AND bookId = ?', [userId, bookId]);
+    const updated = await queryOne('SELECT * FROM reading_progress WHERE userId = ? AND bookId = ?', [userId, bookId]);
     res.json({ success: true, data: updated });
   } catch (error) {
     res.status(500).json({ success: false, error: 'Failed to update reading progress' });
@@ -129,21 +129,21 @@ router.post('/sessions', verifyToken, async (req: Request, res: Response): Promi
     const now = new Date().toISOString();
     const sessionId = uuidv4();
 
-    run(
+    await run(
       'INSERT INTO reading_sessions (id, userId, bookId, startPage, endPage, duration, startedAt, endedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
       [sessionId, userId, bookId, startPage, endPage, duration, now, now]
     );
 
     const pointsEarned = Math.floor(duration / 60) * 2;
     if (pointsEarned > 0) {
-      run('UPDATE users SET points = points + ? WHERE id = ?', [pointsEarned, userId]);
-      run(
+      await run('UPDATE users SET points = points + ? WHERE id = ?', [pointsEarned, userId]);
+      await run(
         'INSERT INTO points (id, userId, points, type, description, referenceId) VALUES (?, ?, ?, ?, ?, ?)',
         [uuidv4(), userId, pointsEarned, 'reading', `Reading session: ${duration} seconds`, sessionId]
       );
     }
 
-    const session = queryOne('SELECT * FROM reading_sessions WHERE id = ?', [sessionId]);
+    const session = await queryOne('SELECT * FROM reading_sessions WHERE id = ?', [sessionId]);
     res.status(201).json({ success: true, data: session });
   } catch (error) {
     res.status(500).json({ success: false, error: 'Failed to create reading session' });
@@ -169,7 +169,7 @@ router.get('/sessions', verifyToken, async (req: Request, res: Response): Promis
     sql += ' ORDER BY rs.endedAt DESC LIMIT ?';
     params.push(parseInt(limit as string));
 
-    const sessions = queryAll(sql, params);
+    const sessions = await queryAll(sql, params);
     res.json({ success: true, data: sessions });
   } catch (error) {
     res.status(500).json({ success: false, error: 'Failed to fetch reading sessions' });
@@ -185,20 +185,20 @@ router.get('/history', verifyToken, async (req: Request, res: Response): Promise
     const pageSizeNum = Math.min(50, Math.max(1, parseInt(pageSize as string)));
     const offset = (pageNum - 1) * pageSizeNum;
 
-    const countResult = queryOne(
+    const countResult = await queryOne(
       'SELECT COUNT(*) as total FROM reading_sessions WHERE userId = ?',
       [userId]
     );
     const total = countResult ? (countResult.total as number) : 0;
 
-    const sessions = queryAll(
+    const sessions = await queryAll(
       `SELECT rs.*, b.title, b.author, b.coverUrl
        FROM reading_sessions rs
        JOIN books b ON rs.bookId = b.id
        WHERE rs.userId = ?
        ORDER BY rs.endedAt DESC
-       LIMIT ${pageSizeNum} OFFSET ${offset}`,
-      [userId]
+       LIMIT ? OFFSET ?`,
+      [userId, pageSizeNum, offset]
     );
 
     res.json({
@@ -220,33 +220,33 @@ router.get('/stats', verifyToken, async (req: Request, res: Response): Promise<v
   try {
     const userId = req.user!.userId;
 
-    const completedBooks = queryOne(
+    const completedBooks = await queryOne(
       'SELECT COUNT(*) as count FROM reading_progress WHERE userId = ? AND isCompleted = 1',
       [userId]
     );
-    const totalPages = queryOne(
+    const totalPages = await queryOne(
       'SELECT COALESCE(SUM(currentPage), 0) as total FROM reading_progress WHERE userId = ?',
       [userId]
     );
-    const totalMinutes = queryOne(
+    const totalMinutes = await queryOne(
       'SELECT COALESCE(SUM(duration), 0) as total FROM reading_sessions WHERE userId = ?',
       [userId]
     );
-    const totalBooks = queryOne(
+    const totalBooks = await queryOne(
       'SELECT COUNT(*) as count FROM reading_progress WHERE userId = ?',
       [userId]
     );
-    const user = queryOne('SELECT points, level FROM users WHERE id = ?', [userId]);
-    const quizAvg = queryOne(
+    const user = await queryOne('SELECT points, level FROM users WHERE id = ?', [userId]);
+    const quizAvg = await queryOne(
       'SELECT COALESCE(AVG(score), 0) as avg FROM quiz_results WHERE userId = ?',
       [userId]
     );
-    const quizCount = queryOne(
+    const quizCount = await queryOne(
       'SELECT COUNT(*) as count FROM quiz_results WHERE userId = ?',
       [userId]
     );
 
-    const categoryDist = queryAll(
+    const categoryDist = await queryAll(
       `SELECT c.name as category, COUNT(rp.id) as count
        FROM reading_progress rp
        JOIN books b ON rp.bookId = b.id
@@ -261,7 +261,7 @@ router.get('/stats', verifyToken, async (req: Request, res: Response): Promise<v
       const date = new Date();
       date.setDate(date.getDate() - i);
       const dateStr = date.toISOString().split('T')[0];
-      const result = queryOne(
+      const result = await queryOne(
         `SELECT COALESCE(SUM(duration), 0) as total FROM reading_sessions WHERE userId = ? AND DATE(startedAt) = ?`,
         [userId, dateStr]
       );
@@ -273,14 +273,14 @@ router.get('/stats', verifyToken, async (req: Request, res: Response): Promise<v
       const date = new Date();
       date.setMonth(date.getMonth() - i);
       const monthStr = date.toISOString().substring(0, 7);
-      const result = queryOne(
-        `SELECT COUNT(*) as count FROM reading_progress WHERE userId = ? AND isCompleted = 1 AND strftime('%Y-%m', startedAt) = ?`,
+      const result = await queryOne(
+        `SELECT COUNT(*) as count FROM reading_progress WHERE userId = ? AND isCompleted = 1 AND DATE_FORMAT(startedAt, '%Y-%m') = ?`,
         [userId, monthStr]
       );
       monthlyBooks.push(result?.count as number || 0);
     }
 
-    const totalSessions = queryOne(
+    const totalSessions = await queryOne(
       'SELECT COUNT(*) as count FROM reading_sessions WHERE userId = ?',
       [userId]
     );

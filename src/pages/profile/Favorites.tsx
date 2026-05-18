@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Heart, BookOpen, X } from 'lucide-react';
+import BookCover from '@/components/BookCover';
 import { favoriteApi } from '@/utils/api';
 import type { Favorite } from '@/types';
 
@@ -52,10 +53,12 @@ export default function Favorites() {
   if (favorites.length === 0) {
     return (
       <div className="text-center py-16 animate-fade-in">
-        <Heart className="w-10 h-10 text-border mx-auto mb-3" strokeWidth={1.5} />
-        <p className="text-sm text-text-tertiary mb-1">No favorites yet</p>
-        <Link to="/books" className="text-sm text-accent hover:text-accent-hover transition-colors duration-micro ease-out-quart">
-          Browse books
+        <div className="w-16 h-16 mx-auto mb-3 rounded-full bg-accent/10 flex items-center justify-center">
+          <Heart className="w-8 h-8 text-accent" strokeWidth={1.5} />
+        </div>
+        <p className="text-sm font-bold text-text-secondary mt-3">No favorites yet</p>
+        <Link to="/books" className="inline-block mt-2 text-sm font-bold text-accent hover:text-accent-hover transition-colors">
+          Browse the library
         </Link>
       </div>
     );
@@ -65,9 +68,9 @@ export default function Favorites() {
     <div className="grid grid-cols-2 md:grid-cols-3 gap-3 animate-fade-in">
       {favorites.map((fav) => (
         <Link key={fav.id} to={`/books/${fav.bookId}`} className="group">
-          <div className="bg-surface rounded-lg border border-border overflow-hidden hover:shadow-2 hover:-translate-y-0.5 transition-all duration-standard ease-out-quart relative">
-            <div className="h-32 bg-accent/5 flex items-center justify-center">
-              <BookOpen className="w-8 h-8 text-accent/20" strokeWidth={1.5} />
+          <div className="bg-surface rounded-xl border border-border overflow-hidden shadow-1 hover:shadow-2 hover:-translate-y-0.5 transition-all duration-200 relative">
+            <div className="h-32 relative">
+              <BookCover book={{ id: fav.bookId, fileUrl: fav.book?.fileUrl, fileType: fav.book?.fileType, coverUrl: fav.book?.coverUrl }} className="w-full h-full" iconClassName="w-8 h-8 text-accent/30" />
             </div>
             <button
               onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleRemove(fav.bookId); }}
@@ -77,8 +80,8 @@ export default function Favorites() {
               <X className="w-3.5 h-3.5" strokeWidth={1.5} />
             </button>
             <div className="p-3">
-              <h3 className="text-sm font-medium text-text-primary line-clamp-1 group-hover:text-accent transition-colors duration-micro ease-out-quart">
-                {fav.book?.title || '未知图书'}
+              <h3 className="text-sm font-bold text-text-primary line-clamp-1 group-hover:text-accent transition-colors duration-200">
+                {fav.book?.title || 'Unknown Book'}
               </h3>
               <p className="text-xs text-text-tertiary mt-0.5">{fav.book?.author || ''}</p>
             </div>

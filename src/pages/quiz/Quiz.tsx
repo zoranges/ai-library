@@ -65,15 +65,15 @@ export default function Quiz() {
 
   if (isLoading) {
     return (
-      <div className="page-container flex items-center justify-center min-h-[50vh]">
-        <div className="skeleton w-full max-w-2xl h-96 rounded-card" />
+      <div className="flex items-center justify-center min-h-[50vh] px-4">
+        <div className="skeleton w-full max-w-2xl h-96" />
       </div>
     );
   }
 
   if (alreadyCompleted && result) {
     return (
-      <div className="page-container max-w-xl mx-auto">
+      <div className="max-w-xl mx-auto px-4 sm:px-6 lg:px-8">
         <button
           onClick={() => navigate(-1)}
           className="flex items-center gap-1.5 text-sm text-text-tertiary hover:text-accent mb-8 transition-colors duration-micro ease-out-quart"
@@ -110,7 +110,7 @@ export default function Quiz() {
   if (result && !alreadyCompleted) {
     const earned = result.correctAnswers;
     return (
-      <div className="page-container max-w-xl mx-auto">
+      <div className="max-w-xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="bg-surface rounded-xl border border-border p-10 text-center animate-scale-in">
           <div className="inline-flex items-center justify-center w-14 h-14 bg-warning-subtle rounded-xl mb-5">
             <Trophy className="w-7 h-7 text-warning" strokeWidth={1.5} />
@@ -156,10 +156,10 @@ export default function Quiz() {
   }
 
   const q = questions[currentQ];
-  if (!q) return <div className="page-container text-center py-16 text-text-tertiary">暂无测验题目</div>;
+  if (!q) return <div className="text-center py-16 px-4 text-text-tertiary">暂无测验题目</div>;
 
   return (
-    <div className="page-container max-w-xl mx-auto">
+    <div className="max-w-xl mx-auto">
       <button
         onClick={() => navigate(-1)}
         className="flex items-center gap-1.5 text-sm text-text-tertiary hover:text-accent mb-8 transition-colors duration-micro ease-out-quart"
@@ -168,13 +168,13 @@ export default function Quiz() {
         返回
       </button>
 
-      <div className="mb-8">
-        <h1 className="text-lg font-semibold text-text-primary font-heading">Reading Quiz</h1>
+      <div className="mb-6">
+        <h1 className="text-lg font-extrabold text-text-primary font-heading">阅读测验</h1>
         <p className="text-sm text-text-tertiary mt-0.5">{bookTitle}</p>
       </div>
 
-      <div className="mb-3">
-        <div className="w-full h-1 bg-bg-tertiary rounded-full overflow-hidden">
+      <div className="mb-4">
+        <div className="w-full h-1.5 bg-bg-tertiary rounded-full overflow-hidden">
           <div
             className="h-full bg-accent rounded-full transition-all duration-emphasized ease-out-quart"
             style={{ width: `${((currentQ + 1) / questions.length) * 100}%` }}
@@ -200,7 +200,7 @@ export default function Quiz() {
         <div className="flex items-center gap-2 mb-4">
           <span className="text-xs font-mono font-medium text-accent tabular-nums">Q{currentQ + 1}</span>
         </div>
-        <p className="text-[15px] font-medium text-text-primary leading-relaxed">{q.question}</p>
+        <p className="text-base font-semibold text-text-primary leading-relaxed">{q.question}</p>
       </div>
 
       <div className="space-y-2.5 mb-8">

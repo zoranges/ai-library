@@ -1,5 +1,5 @@
 import { Router, type Request, type Response } from 'express';
-import { queryAll, queryOne, run } from '../db/database.js';
+import { queryAll, queryOne, run, safeJsonParse } from '../db/database.js';
 import { verifyToken } from '../middleware/auth.js';
 
 const router = Router();
@@ -46,25 +46,25 @@ router.get('/', verifyToken, async (req: Request, res: Response): Promise<void> 
     const sortColumn = validSortColumns.includes(sortBy as string) ? sortBy : 'createdAt';
     const order = sortOrder === 'asc' ? 'ASC' : 'DESC';
 
-    const countResult = queryOne(
+    const countResult = await queryOne(
       `SELECT COUNT(*) as total FROM books b ${whereClause}`,
       params
     );
     const total = countResult ? (countResult.total as number) : 0;
 
-    const books = queryAll(
+    const books = await queryAll(
       `SELECT b.*, c.name as categoryName, c.icon as categoryIcon, c.color as categoryColor
        FROM books b
        LEFT JOIN book_categories c ON b.categoryId = c.id
        ${whereClause}
        ORDER BY b.${sortColumn} ${order}
-       LIMIT ${pageSizeNum} OFFSET ${offset}`,
-      params
+       LIMIT ? OFFSET ?`,
+      [...params, pageSizeNum, offset]
     );
 
     const formattedBooks = books.map(book => ({
       ...book,
-      tags: JSON.parse((book.tags as string) || '[]'),
+      tags: safeJsonParse(book.tags, []),
       category: book.categoryName ? {
         id: book.categoryId,
         name: book.categoryName,
@@ -90,8 +90,18 @@ router.get('/', verifyToken, async (req: Request, res: Response): Promise<void> 
 
 router.get('/categories', verifyToken, async (_req: Request, res: Response): Promise<void> => {
   try {
-    const categories = queryAll('SELECT * FROM book_categories ORDER BY sortOrder ASC');
-    res.json({ success: true, data: categories });
+    const categories = await queryAll(
+      `SELECT c.*, COUNT(b.id) as realBookCount
+       FROM book_categories c
+       LEFT JOIN books b ON b.categoryId = c.id AND b.isActive = 1
+       GROUP BY c.id
+       ORDER BY c.sortOrder ASC`
+    );
+    const formatted = categories.map(c => {
+      const { realBookCount, ...rest } = c;
+      return { ...rest, bookCount: realBookCount };
+    });
+    res.json({ success: true, data: formatted });
   } catch (error) {
     res.status(500).json({ success: false, error: 'Failed to fetch categories' });
   }
@@ -99,7 +109,7 @@ router.get('/categories', verifyToken, async (_req: Request, res: Response): Pro
 
 router.get('/:id', verifyToken, async (req: Request, res: Response): Promise<void> => {
   try {
-    const book = queryOne(
+    const book = await queryOne(
       `SELECT b.*, c.name as categoryName, c.icon as categoryIcon, c.color as categoryColor
        FROM books b
        LEFT JOIN book_categories c ON b.categoryId = c.id
@@ -114,7 +124,7 @@ router.get('/:id', verifyToken, async (req: Request, res: Response): Promise<voi
 
     const formattedBook = {
       ...book,
-      tags: JSON.parse((book.tags as string) || '[]'),
+      tags: safeJsonParse(book.tags, []),
       category: book.categoryName ? {
         id: book.categoryId,
         name: book.categoryName,
@@ -134,15 +144,15 @@ router.post('/:id/favorite', verifyToken, async (req: Request, res: Response): P
     const bookId = req.params.id;
     const userId = req.user!.userId;
 
-    const existing = queryOne('SELECT id FROM favorites WHERE userId = ? AND bookId = ?', [userId, bookId]);
+    const existing = await queryOne('SELECT id FROM favorites WHERE userId = ? AND bookId = ?', [userId, bookId]);
     if (existing) {
       res.status(409).json({ success: false, error: 'Already favorited' });
       return;
     }
 
     const { v4: uuidv4 } = await import('uuid');
-    run('INSERT INTO favorites (id, userId, bookId) VALUES (?, ?, ?)', [uuidv4(), userId, bookId]);
-    run('UPDATE books SET favoriteCount = favoriteCount + 1 WHERE id = ?', [bookId]);
+    await run('INSERT INTO favorites (id, userId, bookId) VALUES (?, ?, ?)', [uuidv4(), userId, bookId]);
+    await run('UPDATE books SET favoriteCount = favoriteCount + 1 WHERE id = ?', [bookId]);
 
     res.status(201).json({ success: true, message: 'Book favorited' });
   } catch (error) {
@@ -155,14 +165,14 @@ router.delete('/:id/favorite', verifyToken, async (req: Request, res: Response):
     const bookId = req.params.id;
     const userId = req.user!.userId;
 
-    const existing = queryOne('SELECT id FROM favorites WHERE userId = ? AND bookId = ?', [userId, bookId]);
+    const existing = await queryOne('SELECT id FROM favorites WHERE userId = ? AND bookId = ?', [userId, bookId]);
     if (!existing) {
       res.status(404).json({ success: false, error: 'Favorite not found' });
       return;
     }
 
-    run('DELETE FROM favorites WHERE userId = ? AND bookId = ?', [userId, bookId]);
-    run('UPDATE books SET favoriteCount = MAX(0, favoriteCount - 1) WHERE id = ?', [bookId]);
+    await run('DELETE FROM favorites WHERE userId = ? AND bookId = ?', [userId, bookId]);
+    await run('UPDATE books SET favoriteCount = MAX(0, favoriteCount - 1) WHERE id = ?', [bookId]);
 
     res.json({ success: true, message: 'Favorite removed' });
   } catch (error) {
@@ -173,13 +183,13 @@ router.delete('/:id/favorite', verifyToken, async (req: Request, res: Response):
 router.get('/:id/recommendations', verifyToken, async (req: Request, res: Response): Promise<void> => {
   try {
     const bookId = req.params.id;
-    const book = queryOne('SELECT categoryId FROM books WHERE id = ?', [bookId]);
+    const book = await queryOne('SELECT categoryId FROM books WHERE id = ?', [bookId]);
     if (!book) {
       res.status(404).json({ success: false, error: 'Book not found' });
       return;
     }
 
-    const recommendations = queryAll(
+    const recommendations = await queryAll(
       `SELECT b.*, c.name as categoryName, c.icon as categoryIcon, c.color as categoryColor
        FROM books b
        LEFT JOIN book_categories c ON b.categoryId = c.id
@@ -191,7 +201,7 @@ router.get('/:id/recommendations', verifyToken, async (req: Request, res: Respon
 
     const formatted = recommendations.map(b => ({
       ...b,
-      tags: JSON.parse((b.tags as string) || '[]'),
+      tags: safeJsonParse(b.tags, []),
       category: b.categoryName ? {
         id: b.categoryId,
         name: b.categoryName,

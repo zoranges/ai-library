@@ -16,7 +16,7 @@ interface AIAssistantProps {
 }
 
 export default function AIAssistant({ bookId, currentPage, pageText }: AIAssistantProps) {
-  const { messages, isLoading, sendMessage, toggleOpen } = useAiStore();
+  const { messages, isLoading, error, sendMessage, toggleOpen } = useAiStore();
   const [input, setInput] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -76,7 +76,12 @@ export default function AIAssistant({ bookId, currentPage, pageText }: AIAssista
       </div>
 
       <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3">
-        {messages.length === 0 && (
+        {error && (
+          <div className="bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 rounded-lg px-3 py-2 text-[12px] text-red-700 dark:text-red-400 animate-fade-in">
+            {error}
+          </div>
+        )}
+        {messages.length === 0 && !error && (
           <div className="text-center py-12 animate-fade-in">
             <div className="inline-flex items-center justify-center w-10 h-10 bg-accent-subtle rounded-lg mb-3">
               <HelpCircle className="w-5 h-5 text-accent" strokeWidth={1.5} />

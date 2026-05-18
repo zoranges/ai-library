@@ -64,7 +64,7 @@ export default function Notes() {
   }
 
   const grouped = notes.reduce<Record<string, Note[]>>((acc, note) => {
-    const key = note.book?.title || '未知图书';
+    const key = note.book?.title || 'Unknown Book';
     if (!acc[key]) acc[key] = [];
     acc[key].push(note);
     return acc;
@@ -81,8 +81,11 @@ export default function Notes() {
   if (notes.length === 0) {
     return (
       <div className="text-center py-16 animate-fade-in">
-        <Notebook className="w-10 h-10 text-border mx-auto mb-3" strokeWidth={1.5} />
-        <p className="text-sm text-text-tertiary">No notes yet</p>
+        <div className="w-16 h-16 mx-auto mb-3 rounded-full bg-accent/10 flex items-center justify-center">
+          <Notebook className="w-8 h-8 text-accent" strokeWidth={1.5} />
+        </div>
+        <p className="text-sm font-bold text-text-secondary mt-3">No notes yet</p>
+        <p className="text-xs text-text-tertiary mt-1">Add some notes while reading</p>
       </div>
     );
   }
@@ -113,7 +116,7 @@ export default function Notes() {
                         </span>
                       )}
                       <span className="text-[11px] font-mono text-text-tertiary tabular-nums">
-                        {new Date(note.updatedAt).toLocaleDateString('zh-CN')}
+                        {new Date(note.updatedAt).toLocaleDateString('en-US')}
                       </span>
                     </div>
                   </div>
@@ -139,10 +142,10 @@ export default function Notes() {
         </div>
       ))}
 
-      <Modal isOpen={!!editingNote} onClose={() => setEditingNote(null)} title="编辑笔记" footer={
+      <Modal isOpen={!!editingNote} onClose={() => setEditingNote(null)} title="Edit Note" footer={
         <>
-          <Button variant="ghost" onClick={() => setEditingNote(null)}>取消</Button>
-          <Button onClick={saveEdit}>保存</Button>
+          <Button variant="ghost" onClick={() => setEditingNote(null)}>Cancel</Button>
+          <Button onClick={saveEdit}>Save</Button>
         </>
       }>
         <div className="space-y-3">
@@ -151,14 +154,14 @@ export default function Notes() {
             value={editTitle}
             onChange={(e) => setEditTitle(e.target.value)}
             className="w-full bg-bg-tertiary border border-border rounded-lg px-3 py-2 text-sm text-text-primary placeholder:text-text-tertiary focus:outline-none focus:ring-2 focus:ring-accent/20 focus:border-accent transition-colors duration-micro ease-out-quart"
-            placeholder="笔记标题"
+            placeholder="Note title"
           />
           <textarea
             value={editContent}
             onChange={(e) => setEditContent(e.target.value)}
             rows={5}
             className="w-full bg-bg-tertiary border border-border rounded-lg px-3 py-2 text-sm text-text-primary placeholder:text-text-tertiary focus:outline-none focus:ring-2 focus:ring-accent/20 focus:border-accent transition-colors duration-micro ease-out-quart resize-none"
-            placeholder="笔记内容"
+            placeholder="Note content"
           />
         </div>
       </Modal>

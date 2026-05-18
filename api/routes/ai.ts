@@ -1,13 +1,13 @@
 import { Router, type Request, type Response } from 'express';
 import { v4 as uuidv4 } from 'uuid';
-import { queryAll, queryOne, run } from '../db/database.js';
+import { queryAll, queryOne, run, safeJsonParse } from '../db/database.js';
 import { verifyToken } from '../middleware/auth.js';
 
 const router = Router();
 
-const DEEPSEEK_API_KEY = 'sk-49e43c667ec943878a7b9b75c61b3284';
-const DEEPSEEK_BASE_URL = 'https://api.deepseek.com';
-const DEEPSEEK_MODEL = 'deepseek-v4-pro';
+const AI_API_KEY = process.env.ALIBABA_API_KEY || '';
+const AI_BASE_URL = 'https://dashscope.aliyuncs.com/compatible-mode/v1';
+const AI_MODEL = 'qwen-plus';
 
 const SYSTEM_PROMPT = `你是一个专业的AI阅读助手，帮助用户理解书籍内容。你的能力包括：
 1. 解释书中的段落、概念和难懂内容
@@ -18,15 +18,15 @@ const SYSTEM_PROMPT = `你是一个专业的AI阅读助手，帮助用户理解�
 
 请用清晰、准确、友好的方式回答。如果涉及书籍内容，请结合上下文给出深入分析。`;
 
-async function callDeepSeek(messages: Array<{ role: string; content: string }>, options?: { temperature?: number; max_tokens?: number }): Promise<string> {
-  const response = await fetch(`${DEEPSEEK_BASE_URL}/chat/completions`, {
+async function callAI(messages: Array<{ role: string; content: string }>, options?: { temperature?: number; max_tokens?: number }): Promise<string> {
+  const response = await fetch(`${AI_BASE_URL}/chat/completions`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'Authorization': `Bearer ${DEEPSEEK_API_KEY}`,
+      'Authorization': `Bearer ${AI_API_KEY}`,
     },
     body: JSON.stringify({
-      model: DEEPSEEK_MODEL,
+      model: AI_MODEL,
       messages,
       temperature: options?.temperature ?? 0.7,
       max_tokens: options?.max_tokens ?? 2048,
@@ -35,8 +35,8 @@ async function callDeepSeek(messages: Array<{ role: string; content: string }>, 
 
   if (!response.ok) {
     const errText = await response.text();
-    console.error('DeepSeek API error:', response.status, errText);
-    throw new Error(`DeepSeek API error: ${response.status}`);
+    console.error('AI API error:', response.status, errText);
+    throw new Error(`AI API error: ${response.status}`);
   }
 
   const data = await response.json();
@@ -54,7 +54,7 @@ router.post('/chat', verifyToken, async (req: Request, res: Response): Promise<v
 
     let contextInfo = '';
     if (bookId) {
-      const book = queryOne('SELECT title, author, description FROM books WHERE id = ?', [bookId]);
+      const book = await queryOne('SELECT title, author, description FROM books WHERE id = ?', [bookId]);
       if (book) {
         contextInfo = `\n\n当前阅读的书籍信息：\n书名：《${book.title}》\n作者：${book.author}\n简介：${book.description}`;
         if (page) contextInfo += `\n当前页码：第${page}页`;
@@ -70,7 +70,7 @@ router.post('/chat', verifyToken, async (req: Request, res: Response): Promise<v
       { role: 'user', content: message },
     ];
 
-    const reply = await callDeepSeek(messages);
+    const reply = await callAI(messages);
 
     res.json({
       success: true,
@@ -103,7 +103,7 @@ router.post('/explain', verifyToken, async (req: Request, res: Response): Promis
 
     let bookContext = '';
     if (bookId) {
-      const book = queryOne('SELECT title, author FROM books WHERE id = ?', [bookId]);
+      const book = await queryOne('SELECT title, author FROM books WHERE id = ?', [bookId]);
       if (book) {
         bookContext = `\n当前阅读的书籍：《${book.title}》（${book.author}著）`;
         if (page) bookContext += `，第${page}页`;
@@ -115,7 +115,7 @@ router.post('/explain', verifyToken, async (req: Request, res: Response): Promis
       { role: 'user', content: `请详细解释以下文本的含义，从字面意思、深层含义、写作手法、与全文联系等角度分析：\n\n"${text}"` },
     ];
 
-    const explanation = await callDeepSeek(messages);
+    const explanation = await callAI(messages);
 
     res.json({
       success: true,
@@ -143,7 +143,7 @@ router.post('/define', verifyToken, async (req: Request, res: Response): Promise
 
     let bookContext = '';
     if (bookId) {
-      const book = queryOne('SELECT title, author FROM books WHERE id = ?', [bookId]);
+      const book = await queryOne('SELECT title, author FROM books WHERE id = ?', [bookId]);
       if (book) {
         bookContext = `\n当前阅读的书籍：《${book.title}》（${book.author}著）`;
       }
@@ -154,7 +154,7 @@ router.post('/define', verifyToken, async (req: Request, res: Response): Promise
       { role: 'user', content: `请定义以下词语/术语，提供音标（英文词）或拼音（中文词）、词性、所有释义（含例句）、同义词和反义词。请用JSON格式返回：\n\n"${word}"\n\n返回格式示例：\n{"word":"...","phonetic":"...","pinyin":"...","partOfSpeech":"...","definitions":[{"meaning":"...","example":"..."}],"synonyms":["..."],"antonyms":["..."]}` },
     ];
 
-    const result = await callDeepSeek(messages, { temperature: 0.3 });
+    const result = await callAI(messages, { temperature: 0.3 });
 
     let definition;
     try {
@@ -185,7 +185,7 @@ router.post('/translate', verifyToken, async (req: Request, res: Response): Prom
 
     let bookContext = '';
     if (bookId) {
-      const book = queryOne('SELECT title, author FROM books WHERE id = ?', [bookId]);
+      const book = await queryOne('SELECT title, author FROM books WHERE id = ?', [bookId]);
       if (book) {
         bookContext = `\n当前阅读的书籍：《${book.title}》（${book.author}著）`;
       }
@@ -199,7 +199,7 @@ router.post('/translate', verifyToken, async (req: Request, res: Response): Prom
       { role: 'user', content: `请将以下文本翻译成${targetLang}，要求翻译准确、流畅、自然，保留原文的风格和语气：\n\n"${text}"` },
     ];
 
-    const translatedText = await callDeepSeek(messages, { temperature: 0.3 });
+    const translatedText = await callAI(messages, { temperature: 0.3 });
 
     res.json({
       success: true,
@@ -225,7 +225,7 @@ router.post('/quiz/generate', verifyToken, async (req: Request, res: Response): 
       return;
     }
 
-    const book = queryOne('SELECT title, author, description FROM books WHERE id = ?', [bookId]);
+    const book = await queryOne('SELECT title, author, description FROM books WHERE id = ?', [bookId]);
     if (!book) {
       res.status(404).json({ success: false, error: 'Book not found' });
       return;
@@ -239,7 +239,7 @@ router.post('/quiz/generate', verifyToken, async (req: Request, res: Response): 
       { role: 'user', content: `请为《${book.title}》（${book.author}著）生成${numQuestions}道${diffLabel}难度的阅读理解选择题。\n\n书籍简介：${book.description}\n\n请用JSON格式返回，格式如下：\n{"questions":[{"question":"题目","options":["选项A","选项B","选项C","选项D"],"correctAnswer":0,"explanation":"解析"}]}\n\n要求：\n1. 每题4个选项，correctAnswer为正确选项的索引（0-3）\n2. 题目应涵盖书籍的主题、人物、情节、写作手法等方面\n3. 解析要详细` },
     ];
 
-    const result = await callDeepSeek(messages, { temperature: 0.5 });
+    const result = await callAI(messages, { temperature: 0.5 });
 
     let quizData;
     try {
@@ -292,15 +292,15 @@ router.post('/quiz/submit', verifyToken, async (req: Request, res: Response): Pr
     const userId = req.user!.userId;
     const resultId = uuidv4();
 
-    run(
+    await run(
       'INSERT INTO quiz_results (id, userId, bookId, score, totalQuestions, correctAnswers, timeSpent, answers) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
       [resultId, userId, bookId, score, totalQuestions, correctAnswers, timeSpent || 0, JSON.stringify(answers)]
     );
 
     const pointsEarned = Math.floor(score / 10) * 2;
     if (pointsEarned > 0) {
-      run('UPDATE users SET points = points + ? WHERE id = ?', [pointsEarned, userId]);
-      run(
+      await run('UPDATE users SET points = points + ? WHERE id = ?', [pointsEarned, userId]);
+      await run(
         'INSERT INTO points (id, userId, points, type, description, referenceId) VALUES (?, ?, ?, ?, ?, ?)',
         [uuidv4(), userId, pointsEarned, 'quiz', `Quiz completed with score ${score}%`, resultId]
       );
@@ -342,11 +342,11 @@ router.get('/quiz/results', verifyToken, async (req: Request, res: Response): Pr
     }
 
     sql += ' ORDER BY qr.completedAt DESC';
-    const results = queryAll(sql, params);
+    const results = await queryAll(sql, params);
 
     const formatted = results.map(r => ({
       ...r,
-      answers: JSON.parse((r.answers as string) || '[]'),
+      answers: safeJsonParse(r.answers, []),
       book: {
         id: r.bookId,
         title: r.bookTitle,
@@ -390,11 +390,11 @@ router.post('/search', verifyToken, async (req: Request, res: Response): Promise
     }
 
     sql += ' ORDER BY b.rating DESC LIMIT 20';
-    const books = queryAll(sql, params);
+    const books = await queryAll(sql, params);
 
     const formatted = books.map(b => ({
       ...b,
-      tags: JSON.parse((b.tags as string) || '[]'),
+      tags: safeJsonParse(b.tags, []),
       category: b.categoryName ? {
         id: b.categoryId,
         name: b.categoryName,

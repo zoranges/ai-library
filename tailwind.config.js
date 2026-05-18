@@ -14,6 +14,18 @@ export default {
     },
     extend: {
       colors: {
+        brand: {
+          50: "oklch(0.97 0.02 260)",
+          100: "oklch(0.92 0.04 260)",
+          200: "oklch(0.84 0.08 260)",
+          300: "oklch(0.74 0.12 260)",
+          400: "oklch(0.64 0.16 260)",
+          500: "oklch(0.55 0.22 260)",
+          600: "oklch(0.48 0.24 260)",
+          700: "oklch(0.40 0.22 260)",
+          800: "oklch(0.32 0.18 260)",
+          900: "oklch(0.24 0.12 260)",
+        },
         bg: {
           DEFAULT: "var(--color-bg)",
           primary: "var(--color-bg-primary)",
@@ -34,11 +46,6 @@ export default {
           primary: "var(--color-text-primary)",
           secondary: "var(--color-text-secondary)",
           tertiary: "var(--color-text-tertiary)",
-        },
-        brand: {
-          DEFAULT: "var(--color-brand)",
-          light: "var(--color-brand-light)",
-          dark: "var(--color-brand-dark)",
         },
         accent: {
           DEFAULT: "var(--color-accent)",
@@ -70,13 +77,13 @@ export default {
         mono: ['"JetBrains Mono"', 'ui-monospace', 'SFMono-Regular', 'monospace'],
       },
       borderRadius: {
-        sm: "12px",
-        md: "16px",
-        lg: "20px",
-        xl: "28px",
-        card: "20px",
-        button: "16px",
-        input: "16px",
+        sm: "6px",
+        md: "10px",
+        lg: "14px",
+        xl: "20px",
+        card: "12px",
+        button: "8px",
+        input: "8px",
       },
       boxShadow: {
         "1": "var(--shadow-1)",
@@ -141,14 +148,6 @@ export default {
           from: { transform: "rotate(0deg)" },
           to: { transform: "rotate(360deg)" },
         },
-        shimmer: {
-          "0%": { backgroundPosition: "-200% 0" },
-          "100%": { backgroundPosition: "200% 0" },
-        },
-        "pulse-soft": {
-          "0%, 100%": { opacity: "1" },
-          "50%": { opacity: "0.6" },
-        },
       },
       animation: {
         "skeleton-pulse": "skeleton-pulse 2s ease-in-out infinite",
@@ -160,8 +159,6 @@ export default {
         "slide-down": "slide-down 200ms var(--ease-out-quart)",
         "scale-in": "scale-in 200ms var(--ease-out-quart)",
         spin: "spin 800ms linear infinite",
-        shimmer: "shimmer 1.5s ease-in-out infinite",
-        "pulse-soft": "pulse-soft 2s ease-in-out infinite",
       },
     },
   },

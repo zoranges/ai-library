@@ -2,6 +2,17 @@ import { create } from 'zustand';
 import type { ChatMessage } from '@/types';
 import { aiApi } from '@/utils/api';
 
+function genId(): string {
+  try {
+    return genId();
+  } catch {
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+      const r = Math.random() * 16 | 0;
+      return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16);
+    });
+  }
+}
+
 interface AiState {
   messages: ChatMessage[];
   isLoading: boolean;
@@ -25,7 +36,7 @@ export const useAiStore = create<AiState>((set, get) => ({
 
   sendMessage: async (content, bookId, page, pageText) => {
     const userMessage: ChatMessage = {
-      id: crypto.randomUUID(),
+      id: genId(),
       role: 'user',
       content,
       timestamp: new Date().toISOString(),
@@ -36,7 +47,7 @@ export const useAiStore = create<AiState>((set, get) => ({
       const res = await aiApi.chat({ message: content, bookId, page, pageText });
       const data = res.data as any;
       const assistantMessage: ChatMessage = {
-        id: data.id || crypto.randomUUID(),
+        id: data.id || genId(),
         role: 'assistant',
         content: data.content || data.message || '',
         timestamp: data.timestamp || new Date().toISOString(),
@@ -50,7 +61,7 @@ export const useAiStore = create<AiState>((set, get) => ({
 
   explainText: async (text, bookId, page) => {
     const userMessage: ChatMessage = {
-      id: crypto.randomUUID(),
+      id: genId(),
       role: 'user',
       content: `请解释：${text}`,
       timestamp: new Date().toISOString(),
@@ -61,7 +72,7 @@ export const useAiStore = create<AiState>((set, get) => ({
       const res = await aiApi.explain({ text, bookId, page });
       const data = res.data as any;
       const assistantMessage: ChatMessage = {
-        id: crypto.randomUUID(),
+        id: genId(),
         role: 'assistant',
         content: data.explanation || data.content || '',
         timestamp: new Date().toISOString(),
@@ -75,7 +86,7 @@ export const useAiStore = create<AiState>((set, get) => ({
 
   defineWord: async (word, bookId) => {
     const userMessage: ChatMessage = {
-      id: crypto.randomUUID(),
+      id: genId(),
       role: 'user',
       content: `请定义：${word}`,
       timestamp: new Date().toISOString(),
@@ -89,7 +100,7 @@ export const useAiStore = create<AiState>((set, get) => ({
         ? `${data.word} ${data.phonetic || data.pinyin || ''}\n\n${(data.definitions || []).map((d: any) => `${d.meaning}\n例: ${d.example || ''}`).join('\n\n')}${data.synonyms?.length ? `\n\n同义词: ${data.synonyms.join(', ')}` : ''}`
         : (data.definition || data.content || JSON.stringify(data));
       const assistantMessage: ChatMessage = {
-        id: crypto.randomUUID(),
+        id: genId(),
         role: 'assistant',
         content: defContent,
         timestamp: new Date().toISOString(),
@@ -103,7 +114,7 @@ export const useAiStore = create<AiState>((set, get) => ({
 
   translateText: async (text, bookId, page) => {
     const userMessage: ChatMessage = {
-      id: crypto.randomUUID(),
+      id: genId(),
       role: 'user',
       content: `请翻译：${text}`,
       timestamp: new Date().toISOString(),
@@ -114,7 +125,7 @@ export const useAiStore = create<AiState>((set, get) => ({
       const res = await aiApi.translate({ text, bookId, page });
       const data = res.data as any;
       const assistantMessage: ChatMessage = {
-        id: crypto.randomUUID(),
+        id: genId(),
         role: 'assistant',
         content: data.translatedText || data.translation || data.content || '',
         timestamp: new Date().toISOString(),

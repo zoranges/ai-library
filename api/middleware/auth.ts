@@ -1,7 +1,13 @@
 import { type Request, type Response, type NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
+import dotenv from 'dotenv';
+import path from 'path';
+import { fileURLToPath } from 'url';
 
-const JWT_SECRET = 'ai-library-secret-key-2024';
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+dotenv.config({ path: path.join(__dirname, '..', '..', '.env') });
+
+const JWT_SECRET = process.env.JWT_SECRET || 'ai-library-secret-key-2024';
 
 export interface JwtPayload {
   userId: string;

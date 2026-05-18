@@ -4,6 +4,7 @@ import { useAuthStore } from '@/stores/authStore';
 import FrontendLayout from '@/components/layout/FrontendLayout';
 import AdminLayout from '@/components/layout/AdminLayout';
 import Home from '@/pages/books/Home';
+import Books from '@/pages/books/BookList';
 import Login from '@/pages/auth/Login';
 import Register from '@/pages/auth/Register';
 import ForgotPassword from '@/pages/auth/ForgotPassword';
@@ -94,7 +95,7 @@ export default function App() {
           <Route path="/register" element={<Register />} />
           <Route path="/forgot-password" element={<ForgotPassword />} />
           <Route path="/" element={<ProtectedRoute><Home /></ProtectedRoute>} />
-          <Route path="/books" element={<ProtectedRoute><Home /></ProtectedRoute>} />
+          <Route path="/books" element={<ProtectedRoute><Books /></ProtectedRoute>} />
           <Route path="/books/:id" element={<ProtectedRoute><BookDetail /></ProtectedRoute>} />
           <Route path="/read/:id" element={<ProtectedRoute><Reader /></ProtectedRoute>} />
           <Route path="/quiz/:bookId" element={<ProtectedRoute><Quiz /></ProtectedRoute>} />

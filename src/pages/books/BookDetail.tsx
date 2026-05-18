@@ -3,17 +3,10 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import { BookOpen, Heart, Play, Star, Calendar, Building2, Hash, ChevronLeft } from 'lucide-react';
 import Button from '@/components/ui/Button';
 import Badge from '@/components/ui/Badge';
+import BookCover from '@/components/BookCover';
 import { useBookStore } from '@/stores/bookStore';
 import { useReadingStore } from '@/stores/readingStore';
 import { favoriteApi } from '@/utils/api';
-
-const COVER_HUES = [
-  { bg: 'bg-blue-50 dark:bg-blue-950/40', accent: 'bg-blue-200 dark:bg-blue-800' },
-  { bg: 'bg-emerald-50 dark:bg-emerald-950/40', accent: 'bg-emerald-200 dark:bg-emerald-800' },
-  { bg: 'bg-amber-50 dark:bg-amber-950/40', accent: 'bg-amber-200 dark:bg-amber-800' },
-  { bg: 'bg-rose-50 dark:bg-rose-950/40', accent: 'bg-rose-200 dark:bg-rose-800' },
-  { bg: 'bg-violet-50 dark:bg-violet-950/40', accent: 'bg-violet-200 dark:bg-violet-800' },
-];
 
 const LANG_DOT: Record<string, string> = {
   en: 'bg-blue-400',
@@ -23,17 +16,17 @@ const LANG_DOT: Record<string, string> = {
 };
 
 const LANG_LABEL: Record<string, string> = {
-  en: '英语',
-  zh: '中文',
-  ms: '马来语',
-  ta: '泰米尔语',
+  en: 'English',
+  zh: 'Chinese',
+  ms: 'Malay',
+  ta: 'Tamil',
 };
 
 function getDifficultyLabel(d: string) {
   const map: Record<string, { label: string; variant: 'success' | 'warning' | 'error' }> = {
-    beginner: { label: '入门', variant: 'success' },
-    intermediate: { label: '进阶', variant: 'warning' },
-    advanced: { label: '高级', variant: 'error' },
+    beginner: { label: 'Beginner', variant: 'success' },
+    intermediate: { label: 'Intermediate', variant: 'warning' },
+    advanced: { label: 'Advanced', variant: 'error' },
   };
   return map[d] || { label: d, variant: 'default' as const };
 }
@@ -82,8 +75,8 @@ export default function BookDetail() {
 
   if (!book) {
     return (
-      <div className="page-container flex items-center justify-center min-h-[50vh]">
-        <div className="skeleton w-full max-w-4xl h-96 rounded-card" />
+      <div className="flex items-center justify-center min-h-[50vh] px-4">
+        <div className="skeleton w-full max-w-4xl h-96" />
       </div>
     );
   }
@@ -91,20 +84,18 @@ export default function BookDetail() {
   const diff = getDifficultyLabel(book.difficulty);
   const progressPct = currentProgress?.percentage ?? 0;
   const relatedBooks = books.filter((b) => b.categoryId === book.categoryId && b.id !== book.id).slice(0, 6);
-  const hue = COVER_HUES[0];
 
   return (
-    <div className="page-container">
-      <button onClick={() => navigate(-1)} className="flex items-center gap-1 text-[13px] text-text-tertiary hover:text-accent mb-6 transition-colors">
-        <ChevronLeft className="w-4 h-4" strokeWidth={1.5} />返回
+    <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+      <button onClick={() => navigate(-1)} className="flex items-center gap-1 text-sm text-text-tertiary hover:text-accent mb-6 transition-colors">
+        <ChevronLeft className="w-4 h-4" strokeWidth={1.5} /> Back
       </button>
 
       <div className="flex flex-col lg:flex-row gap-8 animate-fade-in">
         <div className="shrink-0">
-          <div className={`w-52 h-72 rounded-xl ${hue.bg} flex items-center justify-center shadow-card`}>
-            <div className={`w-20 h-28 rounded-lg ${hue.accent}/30 flex items-center justify-center`}>
-              <BookOpen className="w-8 h-8 text-text-tertiary/40" strokeWidth={1.5} />
-            </div>
+          <div className="w-52 h-72 rounded-xl overflow-hidden shadow-1 relative">
+            <BookCover book={book} className="w-full h-full" iconClassName="w-8 h-8 text-text-tertiary/40" />
+            <div className="absolute inset-0 bg-gradient-to-b from-white/10 to-transparent pointer-events-none" />
           </div>
         </div>
 
@@ -118,10 +109,10 @@ export default function BookDetail() {
             </Badge>
           </div>
 
-          <h1 className="text-[28px] font-bold text-text-primary font-heading leading-tight">{book.title}</h1>
-          <p className="text-[14px] text-text-secondary mt-2">作者：{book.author}</p>
+          <h1 className="text-2xl font-extrabold text-text-primary font-heading leading-tight">{book.title}</h1>
+          <p className="text-sm text-text-secondary mt-2">by {book.author}</p>
 
-          <div className="flex items-center gap-4 mt-3 text-[12px] text-text-tertiary">
+          <div className="flex items-center gap-4 mt-3 text-xs text-text-tertiary">
             {book.isbn && <span className="flex items-center gap-1"><Hash className="w-3.5 h-3.5" strokeWidth={1.5} />{book.isbn}</span>}
             {book.publisher && <span className="flex items-center gap-1"><Building2 className="w-3.5 h-3.5" strokeWidth={1.5} />{book.publisher}</span>}
             {book.publishDate && <span className="flex items-center gap-1"><Calendar className="w-3.5 h-3.5" strokeWidth={1.5} />{book.publishDate}</span>}
@@ -133,14 +124,14 @@ export default function BookDetail() {
               <span className="text-[13px] font-medium text-text-primary font-mono">{book.rating.toFixed(1)}</span>
               <span className="text-[11px] text-text-tertiary">({book.ratingCount})</span>
             </div>
-            <span className="text-[11px] text-text-tertiary font-mono">{book.readCount} 次阅读</span>
-            <span className="text-[11px] text-text-tertiary font-mono">{book.pageCount} 页</span>
+            <span className="text-[11px] text-text-tertiary font-mono">{book.readCount} reads</span>
+            <span className="text-[11px] text-text-tertiary font-mono">{book.pageCount} pages</span>
           </div>
 
           {progressPct > 0 && (
             <div className="mt-5">
               <div className="flex items-center justify-between text-[11px] mb-1.5">
-                <span className="text-text-secondary">阅读进度</span>
+                <span className="text-text-secondary">Reading Progress</span>
                 <span className="text-accent font-medium font-mono">{progressPct}%</span>
               </div>
               <div className="w-full h-1 bg-bg-tertiary rounded-full overflow-hidden">
@@ -151,8 +142,8 @@ export default function BookDetail() {
 
           <div className="flex flex-wrap gap-2.5 mt-6">
             <Link to={`/read/${book.id}`}>
-              <Button size="lg" icon={<Play className="w-4 h-4" strokeWidth={1.5} />} className="h-11 rounded-xl">
-                {progressPct > 0 ? '继续阅读' : '开始阅读'}
+              <Button size="lg" icon={<Play className="w-4 h-4" strokeWidth={1.5} />} className="h-11 rounded-lg">
+                {progressPct > 0 ? 'Continue Reading' : 'Start Reading'}
               </Button>
             </Link>
             <Button
@@ -161,9 +152,9 @@ export default function BookDetail() {
               icon={<Heart className={`w-4 h-4 ${isFavorite ? 'fill-error text-error' : ''}`} strokeWidth={1.5} />}
               onClick={toggleFavorite}
               loading={favLoading}
-              className="h-11 rounded-xl"
+              className="h-11 rounded-lg"
             >
-              {isFavorite ? '已收藏' : '加入收藏'}
+              {isFavorite ? 'Favorited' : 'Add to Favorites'}
             </Button>
           </div>
         </div>
@@ -171,8 +162,8 @@ export default function BookDetail() {
 
       {book.description && (
         <div className="mt-8 bg-bg-primary rounded-xl border border-border p-5">
-          <h3 className="text-[13px] font-semibold text-text-primary mb-2">📖 关于这本书</h3>
-          <p className="text-[13px] text-text-secondary leading-relaxed whitespace-pre-line max-w-2xl">{book.description}</p>
+          <h3 className="text-sm font-bold text-text-primary mb-2">About This Book</h3>
+          <p className="text-sm text-text-secondary leading-relaxed whitespace-pre-line max-w-2xl">{book.description}</p>
         </div>
       )}
 
@@ -185,25 +176,22 @@ export default function BookDetail() {
       )}
 
       {relatedBooks.length > 0 && (
-        <section className="mt-10">
-          <h2 className="text-[15px] font-bold text-text-primary font-heading mb-4">📚 相关推荐</h2>
-          <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide">
-            {relatedBooks.map((rb, idx) => {
-              const rh = COVER_HUES[idx % COVER_HUES.length];
-              return (
-                <Link key={rb.id} to={`/books/${rb.id}`} className="shrink-0 w-36 group">
-                  <div className="bg-bg-primary rounded-xl border border-border overflow-hidden hover:shadow-card-hover hover:-translate-y-0.5 transition-all duration-200">
-                    <div className={`h-28 ${rh.bg} flex items-center justify-center`}>
-                      <BookOpen className="w-5 h-5 text-text-tertiary/40" strokeWidth={1.5} />
-                    </div>
-                    <div className="p-2.5">
-                      <h3 className="text-[12px] font-semibold text-text-primary line-clamp-1 group-hover:text-accent transition-colors">{rb.title}</h3>
-                      <p className="text-[10px] text-text-tertiary mt-0.5">{rb.author}</p>
-                    </div>
+        <section className="mt-12">
+          <h2 className="text-base font-extrabold text-text-primary font-heading mb-4">Related Books</h2>
+          <div className="flex gap-3 overflow-x-auto pb-2">
+            {relatedBooks.map((rb) => (
+              <Link key={rb.id} to={`/books/${rb.id}`} className="shrink-0 w-36 group">
+                <div className="bg-bg-primary rounded-xl border border-border overflow-hidden shadow-1 group-hover:shadow-2 group-hover:-translate-y-0.5 transition-all duration-200">
+                  <div className="h-28">
+                    <BookCover book={rb} className="w-full h-full" iconClassName="w-5 h-5 text-text-tertiary/40" />
                   </div>
-                </Link>
-              );
-            })}
+                  <div className="p-2.5">
+                    <h3 className="text-xs font-semibold text-text-primary line-clamp-1 group-hover:text-accent transition-colors">{rb.title}</h3>
+                    <p className="text-[10px] text-text-tertiary mt-0.5">{rb.author}</p>
+                  </div>
+                </div>
+              </Link>
+            ))}
           </div>
         </section>
       )}
