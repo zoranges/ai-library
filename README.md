@@ -6,6 +6,8 @@
 
 ## English
 
+**Live Site:** [library.630381.com](https://library.630381.com)
+
 AI Library is a full-stack digital reading platform designed for schools and educational institutions. It combines an e-book reader with AI-powered reading assistance, gamification, and comprehensive admin management — all in one system.
 
 ### Features
@@ -111,6 +113,8 @@ The app runs at `http://localhost:5173` with the API proxied to `http://localhos
 ---
 
 ## 中文
+
+**在线地址:** [library.630381.com](https://library.630381.com)
 
 AI 小书屋是一个面向学校和教育机构的数字阅读平台，集电子书阅读、AI 阅读助手、游戏化激励和后台管理于一体。
 
