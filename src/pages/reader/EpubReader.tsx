@@ -1,4 +1,5 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import ePub, { Book, Rendition, NavItem } from 'epubjs';
 import {
   ChevronLeft, ChevronRight, List, Bookmark,
@@ -8,6 +9,7 @@ import {
 import { useReadingStore } from '@/stores/readingStore';
 import { useAiStore } from '@/stores/aiStore';
 import { favoriteApi } from '@/utils/api';
+
 import AIAssistant from './AIAssistant';
 
 const THEME_MODES = {
@@ -39,9 +41,11 @@ interface EpubReaderProps {
   bookTitle?: string;
   onProgressChange?: (cfi: string, percentage: number) => void;
   onNavigateBack?: () => void;
+  onQuizAvailable?: () => void;
 }
 
-export default function EpubReader({ url, bookId, bookTitle, onProgressChange, onNavigateBack }: EpubReaderProps) {
+export default function EpubReader({ url, bookId, bookTitle, onProgressChange, onNavigateBack, onQuizAvailable }: EpubReaderProps) {
+  const { t } = useTranslation();
   const { currentProgress, fetchProgress, saveProgress, highlights, fetchHighlights, addHighlight } = useReadingStore();
   const { isOpen: aiOpen, toggleOpen: toggleAi } = useAiStore();
 
@@ -56,12 +60,14 @@ export default function EpubReader({ url, bookId, bookTitle, onProgressChange, o
   const [currentLocation, setCurrentLocation] = useState(0);
   const [isFavorite, setIsFavorite] = useState(false);
   const [sidebarTab, setSidebarTab] = useState<'toc' | 'bookmarks'>('toc');
-  const [bookmarks, setBookmarks] = useState<string[]>([]);
+  const [bookmarks, setBookmarks] = useState<{ id: string; cfi: string; label?: string; page?: number }[]>([]);
   const [showHighlighter, setShowHighlighter] = useState(false);
   const [highlightColor, setHighlightColor] = useState('yellow');
   const [showNote, setShowNote] = useState(false);
   const [noteText, setNoteText] = useState('');
   const [showFontSize, setShowFontSize] = useState(false);
+  const [brightness, setBrightness] = useState(100);
+  const [showBrightness, setShowBrightness] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selection, setSelection] = useState<{ text: string; cfiRange: string } | null>(null);
@@ -80,6 +86,10 @@ export default function EpubReader({ url, bookId, bookTitle, onProgressChange, o
     favoriteApi.checkFavorite(bookId).then((res) => {
       const data = res.data as any;
       setIsFavorite(data?.isFavorite ?? false);
+    }).catch(() => {});
+    // Load bookmarks from backend
+    favoriteApi.getBookmarks(bookId).then((res) => {
+      setBookmarks((res.data || []) as any[]);
     }).catch(() => {});
   }, [bookId]);
 
@@ -176,7 +186,7 @@ export default function EpubReader({ url, bookId, bookTitle, onProgressChange, o
       });
     }).catch((err: any) => {
       console.error('EPUB loading error:', err);
-      setError('无法加载EPUB文件：' + (err?.message || '未知错误'));
+      setError(t('common.loading') + ': ' + (err?.message || ''));
       setLoading(false);
     });
 
@@ -192,10 +202,16 @@ export default function EpubReader({ url, bookId, bookTitle, onProgressChange, o
     };
   }, [url]);
 
+  const quizPromptShownRef = useRef(false);
+
   useEffect(() => {
     if (bookId && currentCfi && totalLocations > 0) {
-      const timer = setTimeout(() => {
-        saveProgress(bookId, currentLocation, totalLocations, currentCfi);
+      const timer = setTimeout(async () => {
+        const result = await saveProgress(bookId, currentLocation, totalLocations, currentCfi);
+        if (result?.quizAvailable && !quizPromptShownRef.current && onQuizAvailable) {
+          quizPromptShownRef.current = true;
+          onQuizAvailable();
+        }
       }, 3000);
       return () => clearTimeout(timer);
     }
@@ -239,9 +255,13 @@ export default function EpubReader({ url, bookId, bookTitle, onProgressChange, o
     setShowOutline(false);
   }
 
-  function addBookmarkAtLocation() {
-    if (currentCfi && !bookmarks.includes(currentCfi)) {
-      setBookmarks(prev => [...prev, currentCfi]);
+  async function addBookmarkAtLocation() {
+    if (currentCfi && !bookmarks.some(b => b.cfi === currentCfi)) {
+      try {
+        const res = await favoriteApi.addBookmark({ bookId, cfi: currentCfi, page: currentLocation });
+        const newBookmark = res.data as any;
+        setBookmarks(prev => [...prev, newBookmark]);
+      } catch { /* bookmark save failure is non-blocking */ }
     }
   }
 
@@ -290,6 +310,27 @@ export default function EpubReader({ url, bookId, bookTitle, onProgressChange, o
 
   const theme = THEME_MODES[themeMode];
 
+  const themeLabelMap: Record<ThemeMode, string> = {
+    light: t('reader.dayTheme'),
+    sepia: t('reader.eyeCareTheme'),
+    dark: t('reader.nightTheme'),
+  };
+
+  const fontSizeLabelMap: Record<string, string> = {
+    sm: t('common.small'),
+    md: t('common.medium'),
+    lg: t('common.large'),
+    xl: t('common.extraLarge'),
+  };
+
+  const highlightColorLabelMap: Record<string, string> = {
+    yellow: t('common.yellow'),
+    green: t('common.green'),
+    blue: t('common.blue'),
+    pink: t('common.pink'),
+    purple: t('common.purple'),
+  };
+
   if (error) {
     return (
       <div className="fixed inset-0 flex flex-col z-50" style={{ background: theme.bg, color: theme.text }}>
@@ -300,7 +341,7 @@ export default function EpubReader({ url, bookId, bookTitle, onProgressChange, o
             </button>
           )}
           <div className="flex-1 min-w-0 text-center px-3">
-            <h1 className="text-[13px] font-medium truncate" style={{ color: theme.text, opacity: 0.85 }}>{bookTitle || '加载中...'}</h1>
+            <h1 className="text-[13px] font-medium truncate" style={{ color: theme.text, opacity: 0.85 }}>{bookTitle || t('common.loading')}</h1>
           </div>
           <div className="w-[60px]" />
         </header>
@@ -309,11 +350,11 @@ export default function EpubReader({ url, bookId, bookTitle, onProgressChange, o
             <div className="inline-flex items-center justify-center w-20 h-20 rounded-2xl mb-6" style={{ background: 'rgba(239,68,68,0.08)' }}>
               <BookOpen className="w-10 h-10" style={{ color: '#ef4444' }} strokeWidth={1.5} />
             </div>
-            <h2 className="text-xl font-semibold mb-2" style={{ color: theme.text }}>无法打开文件</h2>
+            <h2 className="text-xl font-semibold mb-2" style={{ color: theme.text }}>{t('common.error', { defaultValue: 'Cannot open file' })}</h2>
             <p className="text-sm leading-relaxed mb-8" style={{ color: theme.text, opacity: 0.5 }}>{error}</p>
             <button onClick={onNavigateBack} className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-medium transition-colors" style={{ color: theme.text, background: themeMode === 'dark' ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)' }}>
               <ChevronLeft className="w-4 h-4" strokeWidth={1.5} />
-              返回
+              {t('common.back')}
             </button>
           </div>
         </div>
@@ -341,7 +382,7 @@ export default function EpubReader({ url, bookId, bookTitle, onProgressChange, o
 
         <div className="flex-1 min-w-0 text-center px-3">
           <h1 className="text-[13px] font-medium truncate" style={{ color: theme.text, opacity: 0.85 }}>
-            {bookTitle || '加载中...'}
+            {bookTitle || t('common.loading')}
           </h1>
         </div>
 
@@ -350,7 +391,7 @@ export default function EpubReader({ url, bookId, bookTitle, onProgressChange, o
             onClick={() => setShowOutline(!showOutline)}
             className="p-1.5 rounded-md transition-colors duration-150 hover:opacity-70"
             style={{ color: theme.text, opacity: 0.6 }}
-            title="目录"
+            title={t('reader.tableOfContents')}
           >
             <List className="w-4 h-4" strokeWidth={1.5} />
           </button>
@@ -358,7 +399,7 @@ export default function EpubReader({ url, bookId, bookTitle, onProgressChange, o
             onClick={addBookmarkAtLocation}
             className="p-1.5 rounded-md transition-colors duration-150 hover:opacity-70"
             style={{ color: bookmarks.length > 0 ? '#facc15' : theme.text, opacity: bookmarks.length > 0 ? 1 : 0.6 }}
-            title="书签"
+            title={t('reader.bookmarks')}
           >
             <Bookmark className="w-4 h-4" strokeWidth={1.5} fill={bookmarks.length > 0 ? 'currentColor' : 'none'} />
           </button>
@@ -368,7 +409,7 @@ export default function EpubReader({ url, bookId, bookTitle, onProgressChange, o
               onClick={() => setShowFontSize(!showFontSize)}
               className="p-1.5 rounded-md transition-colors duration-150 hover:opacity-70"
               style={{ color: theme.text, opacity: 0.6 }}
-              title="字体大小"
+              title={t('reader.fontSize')}
             >
               <Type className="w-4 h-4" strokeWidth={1.5} />
             </button>
@@ -389,7 +430,7 @@ export default function EpubReader({ url, bookId, bookTitle, onProgressChange, o
                         color: fontSize === fs.key ? '#6366f1' : theme.text,
                       }}
                     >
-                      {fs.label}
+                      {fontSizeLabelMap[fs.key] || fs.key}
                     </button>
                   ))}
                 </div>
@@ -397,6 +438,27 @@ export default function EpubReader({ url, bookId, bookTitle, onProgressChange, o
             )}
           </div>
           <div className="w-px h-4 mx-1" style={{ background: themeMode === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)' }} />
+          <div className="relative">
+            <button
+              onClick={() => setShowBrightness(!showBrightness)}
+              className="p-1.5 rounded-md transition-colors duration-150 hover:opacity-70"
+              style={{ color: theme.text, opacity: 0.6 }}
+              title={t('reader.brightness')}
+            >
+              <Sun className="w-4 h-4" strokeWidth={1.5} />
+            </button>
+            {showBrightness && (
+              <div
+                className="absolute right-0 top-full mt-1 p-3 rounded-lg shadow-3 animate-scale-in z-50 flex items-center gap-2"
+                style={{ background: themeMode === 'dark' ? '#2a2a48' : '#fff', border: themeMode === 'dark' ? '1px solid rgba(255,255,255,0.1)' : '1px solid rgba(0,0,0,0.08)' }}
+                onClick={e => e.stopPropagation()}
+              >
+                <span className="text-[11px] opacity-50" style={{ color: theme.text }}>☀</span>
+                <input type="range" min="20" max="100" value={brightness} onChange={(e) => setBrightness(Number(e.target.value))} className="w-20 h-1 accent-accent" />
+                <span className="text-[11px] opacity-50" style={{ color: theme.text }}>☀</span>
+              </div>
+            )}
+          </div>
           <button
             onClick={() => {
               const modes = Object.keys(THEME_MODES) as ThemeMode[];
@@ -405,7 +467,7 @@ export default function EpubReader({ url, bookId, bookTitle, onProgressChange, o
             }}
             className="p-1.5 rounded-md transition-colors duration-150 hover:opacity-70"
             style={{ color: theme.text, opacity: 0.6 }}
-            title={`主题: ${theme.label}`}
+            title={`${t('reader.theme')}: ${themeLabelMap[themeMode]}`}
           >
             {themeMode === 'light' && <Sun className="w-4 h-4" strokeWidth={1.5} />}
             {themeMode === 'sepia' && <BookOpen className="w-4 h-4" strokeWidth={1.5} />}
@@ -415,7 +477,7 @@ export default function EpubReader({ url, bookId, bookTitle, onProgressChange, o
             onClick={toggleFullscreen}
             className="p-1.5 rounded-md transition-colors duration-150 hover:opacity-70"
             style={{ color: theme.text, opacity: 0.6 }}
-            title="全屏"
+            title={isFullscreen ? t('reader.exitFullscreen') : t('reader.fullscreen')}
           >
             {isFullscreen ? <Minimize2 className="w-4 h-4" strokeWidth={1.5} /> : <Maximize2 className="w-4 h-4" strokeWidth={1.5} />}
           </button>
@@ -423,7 +485,7 @@ export default function EpubReader({ url, bookId, bookTitle, onProgressChange, o
             onClick={toggleAi}
             className={`p-1.5 rounded-md transition-colors duration-150 ${aiOpen ? '' : 'hover:opacity-70'}`}
             style={{ color: aiOpen ? '#6366f1' : theme.text, opacity: aiOpen ? 1 : 0.6, background: aiOpen ? 'rgba(99,102,241,0.1)' : undefined }}
-            title="AI 助手"
+            title={t('reader.aiAssistant')}
           >
             <Sparkles className="w-4 h-4" strokeWidth={1.5} />
           </button>
@@ -448,7 +510,7 @@ export default function EpubReader({ url, bookId, bookTitle, onProgressChange, o
                     opacity: sidebarTab === tab ? 1 : 0.5,
                   }}
                 >
-                  {tab === 'toc' ? '目录' : '书签'}
+                  {tab === 'toc' ? t('reader.tableOfContents') : t('reader.bookmarks')}
                 </button>
               ))}
             </div>
@@ -457,26 +519,27 @@ export default function EpubReader({ url, bookId, bookTitle, onProgressChange, o
                 toc.length > 0 ? (
                   <TocItems items={toc} onNavigate={navigateToToc} depth={0} theme={themeMode} />
                 ) : (
-                  <p className="text-xs text-center py-8" style={{ color: theme.text, opacity: 0.4 }}>此文档没有目录</p>
+                  <p className="text-xs text-center py-8" style={{ color: theme.text, opacity: 0.4 }}>{t('reader.noSearchResults')}</p>
                 )
               )}
               {sidebarTab === 'bookmarks' && (
                 bookmarks.length > 0 ? (
                   <div className="space-y-0.5">
-                    {bookmarks.map((cfi, idx) => (
+                    {bookmarks.map((bm, idx) => (
                       <button
-                        key={idx}
-                        onClick={() => { renditionRef.current?.display(cfi); setShowOutline(false); }}
+                        key={bm.id || idx}
+                        onClick={() => { renditionRef.current?.display(bm.cfi); setShowOutline(false); }}
                         className="w-full text-left px-3 py-2 rounded-md text-xs transition-colors duration-150 hover:opacity-80"
                         style={{ background: themeMode === 'dark' ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)', color: theme.text }}
                       >
                         <Bookmark className="w-3 h-3 inline mr-2" fill="currentColor" style={{ color: '#facc15' }} />
-                        位置 {idx + 1}
+                        {bm.label || `${t('reader.bookmarks')} ${idx + 1}`}
+                        {bm.page ? <span className="ml-2 opacity-40">p.{bm.page}</span> : null}
                       </button>
                     ))}
                   </div>
                 ) : (
-                  <p className="text-xs text-center py-8" style={{ color: theme.text, opacity: 0.4 }}>暂无书签</p>
+                  <p className="text-xs text-center py-8" style={{ color: theme.text, opacity: 0.4 }}>{t('reader.bookmarks')}</p>
                 )
               )}
             </div>
@@ -490,14 +553,15 @@ export default function EpubReader({ url, bookId, bookTitle, onProgressChange, o
           {loading && (
             <div className="absolute inset-0 flex flex-col items-center justify-center z-10" style={{ background: theme.bg }}>
               <div className="w-10 h-10 border-2 rounded-full animate-spin mb-4" style={{ borderColor: themeMode === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.08)', borderTopColor: '#6366f1' }} />
-              <p className="text-sm" style={{ color: theme.text, opacity: 0.5 }}>正在加载电子书...</p>
+              <p className="text-sm" style={{ color: theme.text, opacity: 0.5 }}>{t('common.loading')}</p>
             </div>
           )}
 
           <div
             ref={readerAreaRef}
-            className="w-full h-full"
-            style={{ background: theme.readerBg }}
+            className="w-full h-full select-none"
+            style={{ background: theme.readerBg, filter: `brightness(${brightness / 100})`, userSelect: 'none' }}
+            onContextMenu={(e) => e.preventDefault()}
           />
 
           <button
@@ -562,7 +626,7 @@ export default function EpubReader({ url, bookId, bookTitle, onProgressChange, o
                 onClick={() => { setHighlightColor(c.key); handleSelectionAction('highlight'); }}
                 className="w-6 h-6 rounded-md transition-transform duration-150 hover:scale-110"
                 style={{ background: c.bg, border: `1.5px solid ${c.border}` }}
-                title={c.label}
+                title={highlightColorLabelMap[c.key] || c.key}
               />
             ))}
             <div className="w-px h-5 mx-0.5" style={{ background: themeMode === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.08)' }} />
@@ -570,7 +634,7 @@ export default function EpubReader({ url, bookId, bookTitle, onProgressChange, o
               onClick={() => handleSelectionAction('explain')}
               className="p-1.5 rounded-lg text-[11px] font-medium transition-colors duration-150 hover:opacity-80"
               style={{ color: theme.text, background: themeMode === 'dark' ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)' }}
-              title="AI 解释"
+              title={t('reader.explain')}
             >
               <Sparkles className="w-3.5 h-3.5" strokeWidth={1.5} />
             </button>
@@ -578,7 +642,7 @@ export default function EpubReader({ url, bookId, bookTitle, onProgressChange, o
               onClick={() => handleSelectionAction('translate')}
               className="p-1.5 rounded-lg text-[11px] font-medium transition-colors duration-150 hover:opacity-80"
               style={{ color: theme.text, background: themeMode === 'dark' ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)' }}
-              title="翻译"
+              title={t('reader.translate')}
             >
               <MessageSquare className="w-3.5 h-3.5" strokeWidth={1.5} />
             </button>
@@ -617,7 +681,7 @@ export default function EpubReader({ url, bookId, bookTitle, onProgressChange, o
             <div className="flex items-center gap-2 flex-1 max-w-md">
               <input
                 type="text"
-                placeholder="输入笔记..."
+                placeholder={t('reader.askQuestion')}
                 value={noteText}
                 onChange={(e) => setNoteText(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && handleAddNote()}
@@ -630,7 +694,7 @@ export default function EpubReader({ url, bookId, bookTitle, onProgressChange, o
                 className="text-[11px] font-medium px-2 py-1 rounded-md transition-colors duration-150"
                 style={{ color: '#6366f1', background: 'rgba(99,102,241,0.1)' }}
               >
-                保存
+                {t('common.save')}
               </button>
               <button
                 onClick={() => setShowNote(false)}
@@ -648,7 +712,7 @@ export default function EpubReader({ url, bookId, bookTitle, onProgressChange, o
                 style={{ color: theme.text, opacity: 0.6, background: themeMode === 'dark' ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)' }}
               >
                 <Highlighter className="w-3 h-3" strokeWidth={1.5} />
-                高亮
+                {t('reader.highlight')}
               </button>
               <button
                 onClick={() => setShowNote(true)}
@@ -656,7 +720,7 @@ export default function EpubReader({ url, bookId, bookTitle, onProgressChange, o
                 style={{ color: theme.text, opacity: 0.6, background: themeMode === 'dark' ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)' }}
               >
                 <Pencil className="w-3 h-3" strokeWidth={1.5} />
-                笔记
+                {t('reader.notes')}
               </button>
               <button
                 onClick={async () => {
@@ -678,7 +742,7 @@ export default function EpubReader({ url, bookId, bookTitle, onProgressChange, o
                 }}
               >
                 <Heart className="w-3 h-3" strokeWidth={1.5} fill={isFavorite ? 'currentColor' : 'none'} />
-                收藏
+                {t('nav.favorites')}
               </button>
             </>
           )}

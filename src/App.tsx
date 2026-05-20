@@ -2,9 +2,11 @@ import { useState, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { useAuthStore } from '@/stores/authStore';
 import FrontendLayout from '@/components/layout/FrontendLayout';
+import SidebarLayout from '@/components/layout/SidebarLayout';
 import AdminLayout from '@/components/layout/AdminLayout';
 import Home from '@/pages/books/Home';
 import Books from '@/pages/books/BookList';
+import Splash from '@/pages/auth/Splash';
 import Login from '@/pages/auth/Login';
 import Register from '@/pages/auth/Register';
 import ForgotPassword from '@/pages/auth/ForgotPassword';
@@ -27,6 +29,8 @@ import ReadingHistory from '@/pages/profile/ReadingHistory';
 import Favorites from '@/pages/profile/Favorites';
 import Notes from '@/pages/profile/Notes';
 import Achievements from '@/pages/profile/Achievements';
+import ReadingGrowth from '@/pages/profile/ReadingGrowth';
+import AIConfig from '@/pages/admin/AIConfig';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, user, fetchMe, token } = useAuthStore();
@@ -47,7 +51,7 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
       </div>
     );
   }
-  if (!isAuthenticated) return <Navigate to="/login" replace />;
+  if (!isAuthenticated) return <Navigate to="/splash" replace />;
   return <>{children}</>;
 }
 
@@ -71,7 +75,7 @@ function AdminRoute({ children }: { children: React.ReactNode }) {
     );
   }
   if (!isAuthenticated) return <Navigate to="/admin/login" replace />;
-  if (user?.role !== 'super_admin' && user?.role !== 'school_admin' && user?.role !== 'admin') return <Navigate to="/" replace />;
+  if (user?.role !== 'super_admin' && user?.role !== 'admin') return <Navigate to="/" replace />;
   return <>{children}</>;
 }
 
@@ -90,10 +94,13 @@ export default function App() {
   return (
     <BrowserRouter>
       <Routes>
-        <Route element={<FrontendLayout />}>
-          <Route path="/login" element={<Login />} />
-          <Route path="/register" element={<Register />} />
-          <Route path="/forgot-password" element={<ForgotPassword />} />
+        <Route path="/splash" element={<Splash />} />
+        <Route path="/login" element={<Login />} />
+        <Route path="/register" element={<Register />} />
+        <Route path="/forgot-password" element={<ForgotPassword />} />
+
+        {/* Frontend pages — sidebar layout */}
+        <Route element={<SidebarLayout />}>
           <Route path="/" element={<ProtectedRoute><Home /></ProtectedRoute>} />
           <Route path="/books" element={<ProtectedRoute><Books /></ProtectedRoute>} />
           <Route path="/books/:id" element={<ProtectedRoute><BookDetail /></ProtectedRoute>} />
@@ -106,6 +113,7 @@ export default function App() {
             <Route path="favorites" element={<Favorites />} />
             <Route path="notes" element={<Notes />} />
             <Route path="achievements" element={<Achievements />} />
+            <Route path="growth" element={<ReadingGrowth />} />
           </Route>
         </Route>
 
@@ -123,6 +131,7 @@ export default function App() {
           <Route path="books/:id/edit" element={<BookManagement />} />
           <Route path="account" element={<AccountCenter />} />
           <Route path="role-switch" element={<RoleSwitch />} />
+          <Route path="ai-config" element={<AIConfig />} />
         </Route>
 
         <Route path="*" element={<Navigate to="/" replace />} />

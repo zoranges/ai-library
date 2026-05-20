@@ -31,6 +31,9 @@ export async function initDatabase(): Promise<void> {
         id VARCHAR(36) PRIMARY KEY,
         name VARCHAR(255) NOT NULL,
         address TEXT,
+        district VARCHAR(255),
+        state VARCHAR(255),
+        country VARCHAR(255) DEFAULT 'Malaysia',
         contactPhone VARCHAR(50),
         contactEmail VARCHAR(255),
         studentCount INT DEFAULT 0,
@@ -63,6 +66,12 @@ export async function initDatabase(): Promise<void> {
         points INT DEFAULT 0,
         level INT DEFAULT 1,
         icNumber VARCHAR(50),
+        preferredLanguage VARCHAR(10) DEFAULT 'en',
+        phone VARCHAR(50),
+        guardianName VARCHAR(255),
+        guardianPhone VARCHAR(50),
+        address TEXT,
+        isDeregistered TINYINT(1) DEFAULT 0,
         createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
         updatedAt DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
         FOREIGN KEY (schoolId) REFERENCES schools(id)
@@ -80,6 +89,30 @@ export async function initDatabase(): Promise<void> {
         createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (userId) REFERENCES users(id),
         FOREIGN KEY (schoolId) REFERENCES schools(id)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    `);
+
+    await conn.execute(`
+      CREATE TABLE IF NOT EXISTS password_reset_tokens (
+        id VARCHAR(36) PRIMARY KEY,
+        userId VARCHAR(36) NOT NULL,
+        token VARCHAR(255) NOT NULL UNIQUE,
+        expiresAt DATETIME NOT NULL,
+        used TINYINT(1) DEFAULT 0,
+        createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (userId) REFERENCES users(id)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    `);
+
+    await conn.execute(`
+      CREATE TABLE IF NOT EXISTS ai_config (
+        id VARCHAR(36) PRIMARY KEY,
+        configKey VARCHAR(100) NOT NULL UNIQUE,
+        configValue TEXT NOT NULL,
+        description VARCHAR(500),
+        updatedAt DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        updatedBy VARCHAR(36),
+        FOREIGN KEY (updatedBy) REFERENCES users(id)
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
     `);
 
@@ -116,6 +149,7 @@ export async function initDatabase(): Promise<void> {
         tags JSON DEFAULT ('[]'),
         fileUrl TEXT,
         fileType VARCHAR(50),
+        textContent LONGTEXT,
         isActive TINYINT(1) DEFAULT 1,
         createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
         updatedAt DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -134,6 +168,7 @@ export async function initDatabase(): Promise<void> {
         lastReadAt DATETIME,
         lastPosition TEXT,
         isCompleted TINYINT(1) DEFAULT 0,
+        completedAt DATETIME,
         startedAt DATETIME DEFAULT CURRENT_TIMESTAMP,
         UNIQUE KEY unique_user_book (userId, bookId),
         FOREIGN KEY (userId) REFERENCES users(id),
@@ -210,6 +245,7 @@ export async function initDatabase(): Promise<void> {
         timeSpent INT NOT NULL DEFAULT 0,
         answers JSON DEFAULT ('[]'),
         completedAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE KEY unique_user_book_quiz (userId, bookId),
         FOREIGN KEY (userId) REFERENCES users(id),
         FOREIGN KEY (bookId) REFERENCES books(id)
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
@@ -278,6 +314,42 @@ export async function initDatabase(): Promise<void> {
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
     `);
 
+    await conn.execute(`
+      CREATE TABLE IF NOT EXISTS login_sessions (
+        id VARCHAR(36) PRIMARY KEY,
+        userId VARCHAR(36) NOT NULL,
+        ipAddress VARCHAR(50),
+        userAgent VARCHAR(500),
+        lastActiveAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+        isCurrent TINYINT(1) DEFAULT 1,
+        FOREIGN KEY (userId) REFERENCES users(id)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    `);
+
+    // Add bindIp column if not exists
+    try {
+      await conn.execute("ALTER TABLE users ADD COLUMN bindIp VARCHAR(50) NULL");
+    } catch { /* column already exists */ }
+
+    // Add copyright column to books if not exists
+    try {
+      await conn.execute("ALTER TABLE books ADD COLUMN copyright TEXT NULL");
+    } catch { /* column already exists */ }
+
+    await conn.execute(`
+      CREATE TABLE IF NOT EXISTS bookmarks (
+        id VARCHAR(36) PRIMARY KEY,
+        userId VARCHAR(36) NOT NULL,
+        bookId VARCHAR(36) NOT NULL,
+        cfi VARCHAR(500) NOT NULL,
+        label VARCHAR(255),
+        page INT DEFAULT 0,
+        createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (userId) REFERENCES users(id),
+        FOREIGN KEY (bookId) REFERENCES books(id)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    `);
+
     await seedData(conn);
     initialized = true;
     console.log('Database initialized successfully');
@@ -293,26 +365,61 @@ async function seedData(conn: PoolConnection) {
   const bcrypt = await import('bcryptjs');
   const hashedPassword = await bcrypt.hash('admin123', 10);
   const studentHashedPassword = await bcrypt.hash('student123', 10);
+  const teacherHashedPassword = await bcrypt.hash('teacher123', 10);
+  const schoolAdminHashedPassword = await bcrypt.hash('schooladmin123', 10);
 
   await conn.execute(
-    `INSERT INTO schools (id, name, address, contactPhone, contactEmail) VALUES
-     ('school-001', '阳光小学', '北京市海淀区中关村大街1号', '010-12345678', 'info@sunshine.edu.cn'),
-     ('school-002', '星辰中学', '上海市浦东新区世纪大道100号', '021-87654321', 'info@star.edu.cn'),
-     ('school-003', '未来学校', '深圳市南山区科技园路88号', '0755-11223344', 'info@future.edu.cn')`
+    `INSERT INTO schools (id, name, address, district, state, country, contactPhone, contactEmail) VALUES
+     ('school-001', '阳光小学', '北京市海淀区中关村大街1号', 'Haidian', 'Kuala Lumpur', 'Malaysia', '010-12345678', 'info@sunshine.edu.cn'),
+     ('school-002', '星辰中学', '上海市浦东新区世纪大道100号', 'Pudong', 'Selangor', 'Malaysia', '021-87654321', 'info@star.edu.cn'),
+     ('school-003', '未来学校', '深圳市南山区科技园路88号', 'Nanshan', 'Penang', 'Malaysia', '0755-11223344', 'info@future.edu.cn')`
   );
 
   await conn.execute(
-    `INSERT INTO users (id, username, email, password, schoolId, role, points, level) VALUES
-     ('user-super-admin', '超级管理员', 'admin@ailibrary.com', ?, 'school-001', 'super_admin', 0, 1),
-     ('user-student-001', '张小明', 'student1@ailibrary.com', ?, 'school-001', 'student', 0, 1),
-     ('user-student-002', '李思思', 'student2@ailibrary.com', ?, 'school-002', 'student', 0, 1),
-     ('user-student-003', 'Ahmad', 'student3@ailibrary.com', ?, 'school-003', 'student', 0, 1)`,
-    [hashedPassword, studentHashedPassword, studentHashedPassword, studentHashedPassword]
+    `INSERT INTO users (id, username, email, password, schoolId, role, points, level, preferredLanguage) VALUES
+     ('user-super-admin', '超级管理员', 'admin@ailibrary.com', ?, 'school-001', 'super_admin', 0, 1, 'zh'),
+     ('user-student-001', '张小明', 'student1@ailibrary.com', ?, 'school-001', 'student', 0, 1, 'zh'),
+     ('user-student-002', '李思思', 'student2@ailibrary.com', ?, 'school-002', 'student', 0, 1, 'en'),
+     ('user-student-003', 'Ahmad', 'student3@ailibrary.com', ?, 'school-003', 'student', 0, 1, 'ms'),
+     ('user-teacher-001', '陈老师', 'teacher1@ailibrary.com', ?, 'school-001', 'teacher', 0, 1, 'zh'),
+     ('user-school-admin', '李校长', 'schooladmin@ailibrary.com', ?, 'school-001', 'admin', 0, 1, 'zh')`,
+    [hashedPassword, studentHashedPassword, studentHashedPassword, studentHashedPassword, teacherHashedPassword, schoolAdminHashedPassword]
   );
 
   await conn.execute(
     `INSERT INTO admins (id, userId, schoolId, role, permissions) VALUES
-     ('admin-001', 'user-super-admin', 'school-001', 'super_admin', '["all"]')`
+     ('admin-001', 'user-super-admin', 'school-001', 'super_admin', '["all"]'),
+     ('admin-002', 'user-school-admin', 'school-001', 'school_admin', '["students","books","reading","quiz"]')`
+  );
+
+  // Seed default AI config
+  await conn.execute(
+    `INSERT INTO ai_config (id, configKey, configValue, description) VALUES
+     ('ai-config-001', 'model', 'qwen-plus', 'AI model used for chat/completion'),
+     ('ai-config-002', 'temperature', '0.7', 'Response creativity (0-1)'),
+     ('ai-config-003', 'max_tokens', '2000', 'Maximum response length'),
+     ('ai-config-004', 'system_prompt_zh', '你是一个儿童友好的AI阅读助手，请使用简单易懂的中文回答，适合小学生理解。', 'System prompt for Chinese'),
+     ('ai-config-005', 'system_prompt_en', 'You are a child-friendly AI reading assistant. Use simple, easy-to-understand English suitable for primary school students.', 'System prompt for English'),
+     ('ai-config-006', 'system_prompt_ms', 'Anda adalah pembantu membaca AI yang mesra kanak-kanak. Gunakan bahasa Melayu yang mudah difahami.', 'System prompt for Malay'),
+     ('ai-config-007', 'default_language', 'zh', 'Default AI response language')`
+  );
+
+  // Seed default achievements
+  await conn.execute(
+    `INSERT INTO achievements (id, name, description, icon, category, \`condition\`, points, rarity) VALUES
+     ('ach-001', 'First Book', 'Complete reading your first book', '📖', 'reading', 'complete-1-book', 10, 'common'),
+     ('ach-002', 'Bookworm', 'Complete reading 10 books', '📚', 'reading', 'complete-10-books', 50, 'rare'),
+     ('ach-003', 'Marathon Reader', 'Read for 10 hours total', '⏱️', 'reading', 'read-600-minutes', 30, 'rare'),
+     ('ach-004', 'Quiz Master', 'Score 100% on a quiz', '🏆', 'quiz', 'quiz-perfect-score', 20, 'epic'),
+     ('ach-005', 'Streak 7', 'Read for 7 consecutive days', '🔥', 'streak', 'streak-7-days', 25, 'rare')`
+  );
+
+  // Seed default badges
+  await conn.execute(
+    `INSERT INTO badges (id, name, description, icon, category, rarity) VALUES
+     ('badge-001', 'Book Worm', 'An avid reader who loves books', '🐛', 'reading', 'common'),
+     ('badge-002', 'Long Reader', 'Spent many hours reading', '⏳', 'reading', 'rare'),
+     ('badge-003', 'Active Reader', 'Reads every day consistently', '⚡', 'reading', 'epic')`
   );
 
   console.log('Seed data inserted successfully');

@@ -253,9 +253,27 @@ code, pre, .font-mono {
   from { opacity: 0; transform: translateX(16px); }
   to { opacity: 1; transform: translateX(0); }
 }
+@keyframes slide-in-left {
+  from { opacity: 0; transform: translateX(-16px); }
+  to { opacity: 1; transform: translateX(0); }
+}
 
 .animate-bounce-in { animation: bounce-in 0.5s var(--ease-out-quint) both; }
 .animate-wiggle { animation: wiggle 0.4s ease-in-out; }
+.animate-slide-in-left { animation: slide-in-left 0.2s ease-out both; }
+
+@keyframes slide-wave {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(24px); }
+  75% { transform: translateX(-24px); }
+}
+
+@keyframes wave {
+  0%, 100% { transform: rotate(-5deg); }
+  50% { transform: rotate(15deg); }
+}
+.animate-wave { animation: wave 2s ease-in-out infinite; }
+.animate-wave-delayed { animation: wave 2s ease-in-out 0.3s infinite; }
 
 /* Professional card utility */
 .pro-card {
@@ -270,7 +288,46 @@ code, pre, .font-mono {
   transform: translateY(-2px);
 }
 
-/* Hero gradient utility */
+/* 3D book cover effect */
+.book-3d {
+  position: relative;
+  box-shadow:
+    4px 4px 10px rgba(0,0,0,0.15),
+    -1px 0 3px rgba(0,0,0,0.06);
+  transition: transform 0.25s ease, box-shadow 0.25s ease;
+  transform: perspective(600px) rotateY(-2deg);
+  transform-origin: left center;
+}
+.book-3d::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 4px;
+  background: linear-gradient(to right, rgba(0,0,0,0.15), rgba(0,0,0,0.04));
+  border-radius: 3px 0 0 3px;
+  pointer-events: none;
+  z-index: 2;
+}
+.book-3d::after {
+  content: '';
+  position: absolute;
+  right: 0;
+  top: 2px;
+  bottom: 2px;
+  width: 2px;
+  background: rgba(255,255,255,0.25);
+  border-radius: 0 2px 2px 0;
+  pointer-events: none;
+  z-index: 2;
+}
+.book-3d:hover {
+  transform: perspective(600px) rotateY(0deg) scale(1.03);
+  box-shadow:
+    6px 6px 16px rgba(0,0,0,0.18),
+    -1px 0 3px rgba(0,0,0,0.06);
+}
 .hero-gradient {
   background: linear-gradient(135deg, oklch(0.48 0.22 260), oklch(0.55 0.18 280), oklch(0.40 0.15 240));
 }

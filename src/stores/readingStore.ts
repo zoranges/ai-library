@@ -14,7 +14,7 @@ interface ReadingState {
 
   fetchProgress: (bookId: string) => Promise<void>;
   fetchProgressList: () => Promise<void>;
-  saveProgress: (bookId: string, currentPage: number, totalPages: number, lastPosition?: string) => Promise<void>;
+  saveProgress: (bookId: string, currentPage: number, totalPages: number, lastPosition?: string) => Promise<any>;
   startSession: (bookId: string) => void;
   endSession: (bookId: string, startPage: number, endPage: number) => Promise<void>;
   fetchHighlights: (bookId: string) => Promise<void>;
@@ -58,6 +58,7 @@ export const useReadingStore = create<ReadingState>((set, get) => ({
       const isCompleted = percentage >= 100;
       const res = await readingApi.saveProgress({ bookId, currentPage, totalPages, percentage, isCompleted, lastPosition } as any);
       set({ currentProgress: res.data });
+      return res.data;
     } catch (err: any) {
       set({ error: err?.message || '保存进度失败' });
     }

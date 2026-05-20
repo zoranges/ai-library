@@ -341,4 +341,70 @@ router.delete('/notes/:id', verifyToken, async (req: Request, res: Response): Pr
   }
 });
 
+// Bookmarks
+router.get('/bookmarks', verifyToken, async (req: Request, res: Response): Promise<void> => {
+  try {
+    const userId = req.user!.userId;
+    const { bookId } = req.query;
+
+    let sql = `SELECT bk.*, b.title as bookTitle
+               FROM bookmarks bk
+               JOIN books b ON bk.bookId = b.id
+               WHERE bk.userId = ?`;
+    const params: unknown[] = [userId];
+
+    if (bookId) {
+      sql += ' AND bk.bookId = ?';
+      params.push(bookId);
+    }
+
+    sql += ' ORDER BY bk.createdAt DESC';
+    const bookmarks = await queryAll(sql, params);
+    res.json({ success: true, data: bookmarks });
+  } catch (error) {
+    res.status(500).json({ success: false, error: 'Failed to fetch bookmarks' });
+  }
+});
+
+router.post('/bookmarks', verifyToken, async (req: Request, res: Response): Promise<void> => {
+  try {
+    const userId = req.user!.userId;
+    const { bookId, cfi, label, page } = req.body;
+
+    if (!bookId || !cfi) {
+      res.status(400).json({ success: false, error: 'bookId and cfi are required' });
+      return;
+    }
+
+    const id = uuidv4();
+    await run(
+      'INSERT INTO bookmarks (id, userId, bookId, cfi, label, page) VALUES (?, ?, ?, ?, ?, ?)',
+      [id, userId, bookId, cfi, label || null, page || 0]
+    );
+
+    const bookmark = await queryOne('SELECT * FROM bookmarks WHERE id = ?', [id]);
+    res.status(201).json({ success: true, data: bookmark });
+  } catch (error) {
+    res.status(500).json({ success: false, error: 'Failed to create bookmark' });
+  }
+});
+
+router.delete('/bookmarks/:id', verifyToken, async (req: Request, res: Response): Promise<void> => {
+  try {
+    const userId = req.user!.userId;
+    const bookmarkId = req.params.id;
+
+    const existing = await queryOne('SELECT id FROM bookmarks WHERE id = ? AND userId = ?', [bookmarkId, userId]);
+    if (!existing) {
+      res.status(404).json({ success: false, error: 'Bookmark not found' });
+      return;
+    }
+
+    await run('DELETE FROM bookmarks WHERE id = ?', [bookmarkId]);
+    res.json({ success: true, message: 'Bookmark deleted' });
+  } catch (error) {
+    res.status(500).json({ success: false, error: 'Failed to delete bookmark' });
+  }
+});
+
 export default router;

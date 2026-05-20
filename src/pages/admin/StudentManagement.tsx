@@ -1,100 +1,171 @@
-import { useState } from 'react';
-import { Search, Download, X, BookOpen, Clock, Target, Award } from 'lucide-react';
+import { useState, useEffect, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
+import { Search, Download, X, BookOpen, Clock, Target, Award, Loader2, ChevronLeft, ChevronRight, RotateCcw } from 'lucide-react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
 import Card from '@/components/ui/Card';
+import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
 import Select from '@/components/ui/Select';
 import Badge from '@/components/ui/Badge';
-import Button from '@/components/ui/Button';
+import Modal from '@/components/ui/Modal';
+import { useAuthStore } from '@/stores/authStore';
 import { cn } from '@/lib/utils';
+import { adminApi } from '@/utils/api';
+import { exportToExcel } from '@/utils/export';
 
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444'];
 
-const tabItems = [
-  { key: 'all', label: 'All' },
-  { key: 'registered', label: 'Registered' },
-  { key: 'unregistered', label: 'Unregistered' },
-];
-
-const stateOptions = [
-  { value: '', label: 'All States' },
-  { value: 'Selangor', label: 'Selangor' },
-  { value: 'Kuala Lumpur', label: 'Kuala Lumpur' },
-];
-
-const schoolOptions = [
-  { value: '', label: 'All Schools' },
-  { value: '1', label: 'SMK Tunku Abdul Rahman' },
-  { value: '2', label: 'SK Bukit Damansara' },
-];
-
-const activityOptions = [
-  { value: '', label: 'All Levels' },
-  { value: 'high', label: 'High' },
-  { value: 'medium', label: 'Medium' },
-  { value: 'low', label: 'Low' },
-];
-
-const mockStudents = [
-  { id: '1', name: 'Ahmad Razif', email: 'ahmad@school.my', school: 'SMK Tunku Abdul Rahman', regDate: '2024-01-15', booksRead: 12, readingTime: '24h 30m', status: 'active', avatar: '', ic: '050101-10-1234' },
-  { id: '2', name: 'Siti Aminah', email: 'siti@school.my', school: 'SK Bukit Damansara', regDate: '2024-02-20', booksRead: 8, readingTime: '18h 15m', status: 'active', avatar: '', ic: '060202-14-5678' },
-  { id: '3', name: 'Rajesh Nair', email: 'rajesh@school.my', school: 'SMK Sri Hartamas', regDate: '2024-03-10', booksRead: 15, readingTime: '32h 45m', status: 'active', avatar: '', ic: '050505-08-9012' },
-  { id: '4', name: 'Lim Wei Ming', email: 'lim@school.my', school: 'SK Bangsar', regDate: '2024-04-05', booksRead: 3, readingTime: '5h 20m', status: 'inactive', avatar: '', ic: '070707-06-3456' },
-  { id: '5', name: 'Nurul Aisyah', email: 'nurul@school.my', school: 'SMK Pantai', regDate: '', booksRead: 0, readingTime: '0h', status: 'unregistered', avatar: '', ic: '080808-02-7890' },
-];
-
-const langData = [
-  { name: 'Malay', value: 45 },
-  { name: 'English', value: 35 },
-  { name: 'Chinese', value: 15 },
-  { name: 'Tamil', value: 5 },
-];
-
 export default function StudentManagement() {
+  const { t } = useTranslation();
+  const { user } = useAuthStore();
+  const isSuper = user?.role === 'super_admin';
   const [tab, setTab] = useState('all');
-  const [state, setState] = useState('');
-  const [school, setSchool] = useState('');
-  const [activity, setActivity] = useState('');
   const [search, setSearch] = useState('');
-  const [selected, setSelected] = useState<string | null>(null);
+  const [schoolId, setSchoolId] = useState('');
+  const [activity, setActivity] = useState('');
+  const [regDateFrom, setRegDateFrom] = useState('');
+  const [regDateTo, setRegDateTo] = useState('');
+  const [page, setPage] = useState(1);
+  const [pageSize] = useState(20);
+  const [students, setStudents] = useState<any[]>([]);
+  const [total, setTotal] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [schools, setSchools] = useState<any[]>([]);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [studentReport, setStudentReport] = useState<any>(null);
+  const [reportLoading, setReportLoading] = useState(false);
 
-  const filtered = mockStudents.filter((s) => {
-    if (tab === 'registered' && s.status === 'unregistered') return false;
-    if (tab === 'unregistered' && s.status !== 'unregistered') return false;
-    if (search && !s.name.toLowerCase().includes(search.toLowerCase())) return false;
-    return true;
-  });
+  const tabItems = [
+    { key: 'all', label: t('common.all') },
+    { key: 'registered', label: t('admin.registered') },
+    { key: 'unregistered', label: t('admin.unregistered') },
+  ];
 
-  const student = selected ? mockStudents.find((s) => s.id === selected) : null;
+  const fetchSchools = useCallback(async () => {
+    try {
+      const res = await adminApi.getSchools({ pageSize: 500 });
+      setSchools(res.data?.data || []);
+    } catch {}
+  }, []);
+
+  const fetchStudents = useCallback(async () => {
+    setLoading(true);
+    try {
+      const params: Record<string, any> = { page, pageSize };
+      if (search) params.search = search;
+      if (schoolId) params.schoolId = schoolId;
+      if (tab === 'registered') params.isDeregistered = '0';
+      else if (tab === 'unregistered') params.isDeregistered = '1';
+      else params.isDeregistered = 'all';
+      const res = await adminApi.getStudents(params);
+      setStudents(res.data?.data || []);
+      setTotal(res.data?.total || 0);
+    } catch {} finally {
+      setLoading(false);
+    }
+  }, [page, pageSize, search, schoolId, tab]);
+
+  useEffect(() => { fetchSchools(); }, [fetchSchools]);
+  useEffect(() => { fetchStudents(); }, [fetchStudents]);
+
+  async function loadStudentReport(id: string) {
+    setSelectedId(id);
+    setReportLoading(true);
+    try {
+      const params: Record<string, any> = {};
+      if (regDateFrom) params.startDate = regDateFrom;
+      if (regDateTo) params.endDate = regDateTo;
+      const res = await adminApi.getStudentReport(id, params);
+      setStudentReport(res.data);
+    } catch {
+      setStudentReport(null);
+    } finally {
+      setReportLoading(false);
+    }
+  }
+
+  async function handleDeregister(id: string) {
+    await adminApi.deregisterStudent(id);
+    fetchStudents();
+    setSelectedId(null);
+  }
+
+  async function handleReregister(id: string) {
+    await adminApi.reregisterStudent(id);
+    fetchStudents();
+  }
+
+  async function handleExportAll() {
+    try {
+      const res = await adminApi.getStudents({ pageSize: 1000 });
+      const data = res.data?.data || [];
+      exportToExcel(
+        data.map((s: any) => ({
+          Name: s.username,
+          Email: s.email,
+          School: s.schoolName,
+          Grade: s.grade,
+          Points: s.points,
+          Level: s.level,
+          Status: s.isDeregistered ? 'Deregistered' : 'Active',
+        })),
+        `all-students-${new Date().toISOString().split('T')[0]}`
+      );
+    } catch { console.error('Export failed'); }
+  }
+
+  const totalPages = Math.ceil(total / pageSize);
+  const report = studentReport;
+  const studentInfo = report?.student;
+  const stats = report?.readingStats || {};
+  const readingHistory = report?.readingHistory || [];
+  const langData = report?.languageDistribution;
+
+  const activityOptions = [
+    { value: '', label: t('admin.allLevels') },
+    { value: 'high', label: t('admin.high') },
+    { value: 'medium', label: t('admin.medium') },
+    { value: 'low', label: t('admin.low') },
+  ];
 
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold text-text-primary font-heading">Student Management</h2>
-        <Button icon={<Download className="h-4 w-4" strokeWidth={1.5} />} variant="outline" size="sm">Export</Button>
+        <h2 className="text-lg font-semibold text-text-primary font-heading">{t('admin.studentManagement')}</h2>
+        <Button variant="outline" size="sm" icon={<Download className="h-4 w-4" strokeWidth={1.5} />} onClick={handleExportAll}>
+          {t('common.export')}
+        </Button>
       </div>
 
       <div className="flex flex-wrap items-center gap-3">
         <div className="flex bg-surface-raised rounded-md p-0.5 gap-0.5">
-          {tabItems.map((t) => (
+          {tabItems.map((tItem) => (
             <button
-              key={t.key}
+              key={tItem.key}
               className={cn(
                 'px-3 py-1 text-[13px] font-medium rounded-[4px] transition-all duration-micro ease-out-quart',
-                tab === t.key
-                  ? 'bg-surface text-text-primary shadow-1'
-                  : 'text-text-tertiary hover:text-text-secondary'
+                tab === tItem.key ? 'bg-surface text-text-primary shadow-1' : 'text-text-tertiary hover:text-text-secondary'
               )}
-              onClick={() => setTab(t.key)}
+              onClick={() => { setTab(tItem.key); setPage(1); }}
             >
-              {t.label}
+              {tItem.label}
             </button>
           ))}
         </div>
-        <div className="w-32"><Select options={stateOptions} value={state} onChange={setState} /></div>
-        <div className="w-44"><Select options={schoolOptions} value={school} onChange={setSchool} /></div>
+        <div className="w-44">
+          <Select
+            options={[{ value: '', label: t('admin.allSchools') }, ...schools.map((s: any) => ({ value: s.id, label: s.name }))]}
+            value={schoolId}
+            onChange={(v) => { setSchoolId(v); setPage(1); }}
+          />
+        </div>
         <div className="w-32"><Select options={activityOptions} value={activity} onChange={setActivity} /></div>
-        <div className="w-56"><Input placeholder="Search students..." value={search} onChange={(e) => setSearch(e.target.value)} icon={<Search className="h-4 w-4" strokeWidth={1.5} />} /></div>
+        <div className="flex items-center gap-1.5">
+          <input type="date" value={regDateFrom} onChange={(e) => { setRegDateFrom(e.target.value); setPage(1); }} className="bg-surface border border-border rounded-md px-2 py-1.5 text-[12px] text-text-primary focus:outline-none focus:ring-2 focus:ring-accent/20" />
+          <span className="text-text-tertiary text-[12px]">-</span>
+          <input type="date" value={regDateTo} onChange={(e) => { setRegDateTo(e.target.value); setPage(1); }} className="bg-surface border border-border rounded-md px-2 py-1.5 text-[12px] text-text-primary focus:outline-none focus:ring-2 focus:ring-accent/20" />
+        </div>
+        <div className="w-56"><Input placeholder={t('admin.searchStudents')} value={search} onChange={(e) => { setSearch(e.target.value); setPage(1); }} icon={<Search className="h-4 w-4" strokeWidth={1.5} />} /></div>
       </div>
 
       <Card padding="none">
@@ -102,111 +173,165 @@ export default function StudentManagement() {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-border bg-surface-raised/50">
-                <th className="text-left px-4 py-2.5 text-[12px] text-text-tertiary font-medium">Name</th>
-                <th className="text-left px-4 py-2.5 text-[12px] text-text-tertiary font-medium">Email</th>
-                <th className="text-left px-4 py-2.5 text-[12px] text-text-tertiary font-medium">School</th>
-                <th className="text-left px-4 py-2.5 text-[12px] text-text-tertiary font-medium">Registered</th>
-                <th className="text-right px-4 py-2.5 text-[12px] text-text-tertiary font-medium">Books</th>
-                <th className="text-center px-4 py-2.5 text-[12px] text-text-tertiary font-medium">Status</th>
+                <th className="text-left px-4 py-2.5 text-[12px] text-text-tertiary font-medium">{t('admin.name')}</th>
+                <th className="text-left px-4 py-2.5 text-[12px] text-text-tertiary font-medium">{t('admin.email')}</th>
+                <th className="text-left px-4 py-2.5 text-[12px] text-text-tertiary font-medium">{t('auth.school')}</th>
+                <th className="text-left px-4 py-2.5 text-[12px] text-text-tertiary font-medium">{t('admin.registered')}</th>
+                <th className="text-center px-4 py-2.5 text-[12px] text-text-tertiary font-medium">{t('common.status')}</th>
+                {isSuper && <th className="text-center px-4 py-2.5 text-[12px] text-text-tertiary font-medium w-24">{t('common.actions')}</th>}
               </tr>
             </thead>
             <tbody>
-              {filtered.map((s) => (
-                <tr
-                  key={s.id}
-                  className={cn(
-                    'border-b border-border cursor-pointer transition-colors',
-                    selected === s.id ? 'bg-accent/5' : 'hover:bg-surface-raised/30'
-                  )}
-                  onClick={() => setSelected(s.id)}
-                >
-                  <td className="px-4 py-3">
-                    <div className="flex items-center gap-2.5">
-                      <div className="h-7 w-7 rounded-full bg-accent/10 flex items-center justify-center text-accent text-[11px] font-semibold shrink-0">
-                        {s.name.charAt(0)}
+              {loading ? (
+                <tr><td colSpan={isSuper ? 6 : 5} className="text-center py-12 text-text-tertiary"><Loader2 className="h-5 w-5 mx-auto animate-spin mb-2" strokeWidth={1.5} />{t('common.loading')}</td></tr>
+              ) : students.length === 0 ? (
+                <tr><td colSpan={isSuper ? 6 : 5} className="text-center py-12 text-text-tertiary">{t('common.noData')}</td></tr>
+              ) : (
+                students.map((s: any) => (
+                  <tr
+                    key={s.id}
+                    className={cn('border-b border-border cursor-pointer transition-colors', selectedId === s.id ? 'bg-accent/5' : 'hover:bg-surface-raised/30')}
+                    onClick={() => loadStudentReport(s.id)}
+                  >
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-2.5">
+                        <div className="h-7 w-7 rounded-full bg-accent/10 flex items-center justify-center text-accent text-[11px] font-semibold shrink-0">
+                          {(s.username || s.email || '?').charAt(0).toUpperCase()}
+                        </div>
+                        <span className="font-medium text-text-primary">{s.username}</span>
                       </div>
-                      <span className="font-medium text-text-primary">{s.name}</span>
-                    </div>
-                  </td>
-                  <td className="px-4 py-3 text-text-secondary">{s.email}</td>
-                  <td className="px-4 py-3 text-text-secondary">{s.school}</td>
-                  <td className="px-4 py-3 text-text-secondary font-mono text-[13px]">{s.regDate || '—'}</td>
-                  <td className="px-4 py-3 text-right text-text-secondary font-mono text-[13px]">{s.booksRead}</td>
-                  <td className="px-4 py-3 text-center">
-                    <Badge
-                      variant={s.status === 'active' ? 'success' : s.status === 'inactive' ? 'warning' : 'default'}
-                      dot
-                      size="sm"
-                    >
-                      {s.status === 'unregistered' ? 'Unregistered' : s.status === 'active' ? 'Active' : 'Inactive'}
-                    </Badge>
-                  </td>
-                </tr>
-              ))}
+                    </td>
+                    <td className="px-4 py-3 text-text-secondary">{s.email}</td>
+                    <td className="px-4 py-3 text-text-secondary">{s.schoolName || '-'}</td>
+                    <td className="px-4 py-3 text-text-secondary font-mono text-[13px]">{s.createdAt ? new Date(s.createdAt).toLocaleDateString() : '-'}</td>
+                    <td className="px-4 py-3 text-center">
+                      <Badge variant={s.isDeregistered ? 'warning' : 'success'} dot size="sm">
+                        {s.isDeregistered ? t('admin.deregistered') : t('common.active')}
+                      </Badge>
+                    </td>
+                    {isSuper && (
+                      <td className="px-4 py-3 text-center" onClick={(e) => e.stopPropagation()}>
+                        <Button size="sm" variant="ghost" onClick={() => s.isDeregistered ? handleReregister(s.id) : handleDeregister(s.id)}>
+                          {s.isDeregistered ? <RotateCcw className="h-3.5 w-3.5" strokeWidth={1.5} /> : <X className="h-3.5 w-3.5" strokeWidth={1.5} />}
+                        </Button>
+                      </td>
+                    )}
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>
+        {totalPages > 1 && (
+          <div className="flex items-center justify-between px-4 py-3 border-t border-border">
+            <span className="text-[12px] text-text-tertiary">{t('common.page')} {page} / {totalPages} ({total} {t('admin.students').toLowerCase()})</span>
+            <div className="flex gap-1.5">
+              <Button variant="ghost" size="sm" disabled={page <= 1} onClick={() => setPage((p) => p - 1)} icon={<ChevronLeft className="h-3.5 w-3.5" strokeWidth={1.5} />}>{t('admin.previous')}</Button>
+              <Button variant="ghost" size="sm" disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)}>{t('admin.next')}<ChevronRight className="h-3.5 w-3.5 ml-1" strokeWidth={1.5} /></Button>
+            </div>
+          </div>
+        )}
       </Card>
 
-      {student && (
+      {/* Student Detail Slide Panel */}
+      {selectedId && (
         <div className="fixed inset-0 z-50 flex justify-end">
-          <div className="absolute inset-0 bg-black/30 backdrop-blur-[2px]" onClick={() => setSelected(null)} />
-          <div className="relative w-full max-w-[400px] bg-surface shadow-3 overflow-y-auto animate-slide-in-right">
+          <div className="absolute inset-0 bg-black/30 backdrop-blur-[2px]" onClick={() => setSelectedId(null)} />
+          <div className="relative w-full max-w-[440px] bg-surface shadow-3 overflow-y-auto animate-slide-in-right">
             <div className="sticky top-0 bg-surface border-b border-border px-5 py-3 flex items-center justify-between z-10">
-              <h3 className="text-sm font-semibold text-text-primary">Student Details</h3>
-              <button onClick={() => setSelected(null)} className="p-1 rounded-md text-text-tertiary hover:text-text-primary hover:bg-surface-raised transition-colors">
+              <h3 className="text-sm font-semibold text-text-primary">{t('admin.studentDetails')}</h3>
+              <button onClick={() => setSelectedId(null)} className="p-1 rounded-md text-text-tertiary hover:text-text-primary hover:bg-surface-raised transition-colors">
                 <X className="h-4 w-4" strokeWidth={1.5} />
               </button>
             </div>
             <div className="p-5 space-y-5">
-              <div className="flex items-center gap-3">
-                <div className="h-12 w-12 bg-accent/10 rounded-full flex items-center justify-center text-accent font-bold text-lg shrink-0">{student.name.charAt(0)}</div>
-                <div className="min-w-0">
-                  <p className="font-semibold text-text-primary">{student.name}</p>
-                  <p className="text-[13px] text-text-secondary">{student.email}</p>
-                  <p className="text-[11px] text-text-tertiary">{student.school} · IC: {student.ic}</p>
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-2.5">
-                {[
-                  { icon: BookOpen, label: 'Books Read', value: student.booksRead, color: 'text-accent' },
-                  { icon: Clock, label: 'Total Time', value: student.readingTime, color: 'text-success' },
-                  { icon: Target, label: 'Avg Session', value: '45m', color: 'text-warning' },
-                  { icon: Award, label: 'Quiz Score', value: '82%', color: 'text-purple-500' },
-                ].map((s, i) => (
-                  <div key={i} className="bg-surface-raised/50 rounded-lg p-3">
-                    <div className="flex items-center gap-2">
-                      <s.icon className={cn('h-4 w-4', s.color)} strokeWidth={1.5} />
-                      <div>
-                        <p className="text-base font-semibold text-text-primary font-mono">{s.value}</p>
-                        <p className="text-[11px] text-text-tertiary">{s.label}</p>
-                      </div>
+              {reportLoading ? (
+                <div className="flex items-center justify-center py-12"><Loader2 className="h-6 w-6 animate-spin text-accent" strokeWidth={1.5} /></div>
+              ) : report ? (
+                <>
+                  <div className="flex items-center gap-3">
+                    <div className="h-12 w-12 bg-accent/10 rounded-full flex items-center justify-center text-accent font-bold text-lg shrink-0">
+                      {studentInfo?.username?.charAt(0)?.toUpperCase() || '?'}
+                    </div>
+                    <div className="min-w-0">
+                      <p className="font-semibold text-text-primary">{studentInfo?.username}</p>
+                      <p className="text-[13px] text-text-secondary">{studentInfo?.email}</p>
+                      <p className="text-[11px] text-text-tertiary">{studentInfo?.schoolName} · IC: {studentInfo?.icNumber || '-'}</p>
                     </div>
                   </div>
-                ))}
-              </div>
-              <div>
-                <h4 className="text-[13px] font-medium text-text-primary mb-2">Language Distribution</h4>
-                <ResponsiveContainer width="100%" height={140}>
-                  <PieChart>
-                    <Pie data={langData} cx="50%" cy="50%" innerRadius={30} outerRadius={55} dataKey="value" paddingAngle={3} strokeWidth={0}>
-                      {langData.map((_, i) => <Cell key={i} fill={COLORS[i]} />)}
-                    </Pie>
-                    <Tooltip contentStyle={{ borderRadius: '8px', border: '1px solid var(--color-border)', fontSize: '12px' }} />
-                  </PieChart>
-                </ResponsiveContainer>
-              </div>
-              <div>
-                <h4 className="text-[13px] font-medium text-text-primary mb-2">Read Books</h4>
-                <div className="space-y-1.5">
-                  {['The Magic Tree House', 'Science Explorer', 'Malaysian Folk Tales'].map((b, i) => (
-                    <div key={i} className="flex items-center justify-between px-3 py-2 bg-surface-raised/50 rounded-md">
-                      <span className="text-[13px] text-text-primary">{b}</span>
-                      <span className="text-[11px] text-text-tertiary font-mono">{100 - i * 15}%</span>
+
+                  <div className="grid grid-cols-2 gap-2.5">
+                    {[
+                      { icon: BookOpen, label: t('admin.booksRead'), value: stats?.totalBooks || 0, color: 'text-accent' },
+                      { icon: Clock, label: t('admin.totalReadingTime'), value: `${Math.round((stats?.totalMinutes || 0) / 60)}h ${(stats?.totalMinutes || 0) % 60}m`, color: 'text-success' },
+                      { icon: Target, label: t('admin.avgQuizScore'), value: `${Math.round(stats?.avgScore || stats?.avgQuizScore || 0)}%`, color: 'text-warning' },
+                      { icon: Award, label: t('admin.completedBooks'), value: stats?.completedBooks || 0, color: 'text-purple-500' },
+                    ].map((item, i) => (
+                      <div key={i} className="bg-surface-raised/50 rounded-lg p-3">
+                        <div className="flex items-center gap-2">
+                          <item.icon className={cn('h-4 w-4', item.color)} strokeWidth={1.5} />
+                          <div>
+                            <p className="text-base font-semibold text-text-primary font-mono">{item.value}</p>
+                            <p className="text-[11px] text-text-tertiary">{item.label}</p>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {langData && langData.length > 0 && (
+                    <div>
+                      <h4 className="text-[13px] font-medium text-text-primary mb-2">{t('admin.languageDistribution')}</h4>
+                      <ResponsiveContainer width="100%" height={140}>
+                        <PieChart>
+                          <Pie data={langData} cx="50%" cy="50%" innerRadius={30} outerRadius={55} dataKey="value" nameKey="name" paddingAngle={3} strokeWidth={0}>
+                            {langData.map((_: any, i: number) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
+                          </Pie>
+                          <Tooltip contentStyle={{ borderRadius: '8px', border: '1px solid var(--color-border)', fontSize: '12px' }} />
+                        </PieChart>
+                      </ResponsiveContainer>
                     </div>
-                  ))}
-                </div>
-              </div>
+                  )}
+
+                  <div>
+                    <h4 className="text-[13px] font-medium text-text-primary mb-2">{t('admin.readBooks')}</h4>
+                    <div className="space-y-1.5 max-h-[240px] overflow-y-auto">
+                      {readingHistory.length > 0 ? readingHistory.slice(0, 10).map((b: any, i: number) => (
+                        <div key={i} className="flex items-center justify-between px-3 py-2 bg-surface-raised/50 rounded-md">
+                          <span className="text-[13px] text-text-primary truncate">{b.bookTitle || b.bookId}</span>
+                          <span className="text-[11px] text-text-tertiary font-mono shrink-0 ml-2">{b.percentage || 0}%</span>
+                        </div>
+                      )) : (
+                        <p className="text-[12px] text-text-tertiary text-center py-4">{t('common.noData')}</p>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="pt-2 border-t border-border">
+                    <Button size="sm" variant="outline" icon={<Download className="h-3.5 w-3.5" strokeWidth={1.5} />} onClick={async () => {
+                      try {
+                        const params: Record<string, any> = {};
+                        if (regDateFrom) params.startDate = regDateFrom;
+                        if (regDateTo) params.endDate = regDateTo;
+                        const expRes = await adminApi.exportStudentReport(selectedId, params);
+                        const data = expRes.data;
+                        const rows = (data?.readingHistory || []).map((h: any) => ({
+                          Book: h.bookTitle,
+                          Author: h.bookAuthor,
+                          Progress: `${h.percentage || 0}%`,
+                          Completed: h.isCompleted ? 'Yes' : 'No',
+                          'Last Read': h.lastReadAt ? new Date(h.lastReadAt).toLocaleString() : '',
+                        }));
+                        exportToExcel(rows, `student-report-${studentInfo?.username || selectedId}-${new Date().toISOString().split('T')[0]}`);
+                      } catch { console.error('Export failed'); }
+                    }}>
+                      {t('admin.exportReport')}
+                    </Button>
+                  </div>
+                </>
+              ) : (
+                <p className="text-center py-8 text-text-tertiary">{t('common.noData')}</p>
+              )}
             </div>
           </div>
         </div>

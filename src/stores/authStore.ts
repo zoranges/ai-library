@@ -10,7 +10,7 @@ interface AuthState {
   error: string | null;
 
   login: (email: string, password: string) => Promise<void>;
-  register: (data: { username: string; email: string; password: string; schoolId: string; grade?: string }) => Promise<void>;
+  register: (data: { username: string; email: string; password: string; schoolId: string; grade?: string; icNumber?: string; preferredLanguage?: string }) => Promise<void>;
   logout: () => void;
   fetchMe: () => Promise<void>;
   clearError: () => void;
@@ -73,6 +73,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   logout: () => {
+    // Call backend to deactivate sessions (fire-and-forget)
+    authApi.logout().catch(() => {});
     storeToken(null);
     set({ user: null, token: null, isAuthenticated: false, error: null });
   },

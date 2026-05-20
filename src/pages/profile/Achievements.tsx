@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { CheckCircle, Lock, Award, Star, BookOpen, Flame, Zap, Users, Sparkles } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import Tabs from '@/components/ui/Tabs';
 import { achievementApi, pointApi } from '@/utils/api';
 
@@ -25,18 +26,19 @@ const RARITY_ICONS: Record<string, typeof Star> = {
   legendary: Sparkles,
 };
 
-const SECTION_TABS = [
-  { key: 'achievements', label: 'Achievements' },
-  { key: 'badges', label: 'Badges' },
-  { key: 'points', label: 'Points' },
-];
-
 export default function Achievements() {
+  const { t } = useTranslation();
   const [section, setSection] = useState('achievements');
   const [achievements, setAchievements] = useState<any[]>([]);
   const [badges, setBadges] = useState<any[]>([]);
   const [pointRecords, setPointRecords] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+
+  const SECTION_TABS = [
+    { key: 'achievements', label: t('profile.achievements') },
+    { key: 'badges', label: 'Badges' },
+    { key: 'points', label: t('profile.points') },
+  ];
 
   useEffect(() => {
     async function load() {
@@ -159,12 +161,12 @@ export default function Achievements() {
               <tr className="border-b border-border">
                 <th className="text-left px-4 py-3 text-[11px] font-medium text-text-tertiary uppercase tracking-wider">Date</th>
                 <th className="text-left px-4 py-3 text-[11px] font-medium text-text-tertiary uppercase tracking-wider">Source</th>
-                <th className="text-right px-4 py-3 text-[11px] font-medium text-text-tertiary uppercase tracking-wider">Points</th>
+                <th className="text-right px-4 py-3 text-[11px] font-medium text-text-tertiary uppercase tracking-wider">{t('profile.points')}</th>
               </tr>
             </thead>
             <tbody>
               {pointRecords.length === 0 ? (
-                <tr><td colSpan={3} className="text-center py-8 text-text-tertiary">No point records</td></tr>
+                <tr><td colSpan={3} className="text-center py-8 text-text-tertiary">{t('common.noData')}</td></tr>
               ) : (
                 pointRecords.map((record) => (
                   <tr key={record.id} className="border-b border-border last:border-0">

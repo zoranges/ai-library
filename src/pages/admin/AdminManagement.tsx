@@ -1,27 +1,15 @@
 import { useState, useEffect } from 'react';
-import { Plus, Edit2, Trash2, RefreshCw } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
+import { Plus, Edit2, Trash2, RefreshCw, Ban } from 'lucide-react';
 import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
 import Select from '@/components/ui/Select';
 import Badge from '@/components/ui/Badge';
 import Modal from '@/components/ui/Modal';
+import { useAuthStore } from '@/stores/authStore';
 import { cn } from '@/lib/utils';
 import { adminApi } from '@/utils/api';
-
-const roles = [
-  { value: 'admin', label: 'School Admin' },
-  { value: 'super_admin', label: 'Super Admin' },
-];
-
-const schoolOptions = [
-  { value: '', label: 'Select School' },
-  { value: '1', label: 'SMK Tunku Abdul Rahman' },
-  { value: '2', label: 'SK Bukit Damansara' },
-  { value: '3', label: 'SMK Sri Hartamas' },
-  { value: '4', label: 'SK Bangsar' },
-  { value: '5', label: 'SMK Pantai' },
-];
 
 const mockAdmins = [
   { id: '1', name: 'Ahmad bin Ali', email: 'ahmad@library.my', school: 'SMK Tunku Abdul Rahman', role: 'admin', isActive: true },
@@ -37,6 +25,9 @@ function generatePassword() {
 }
 
 export default function AdminManagement() {
+  const { t } = useTranslation();
+  const { user } = useAuthStore();
+  const isSuper = user?.role === 'super_admin';
   const [admins, setAdmins] = useState(mockAdmins);
   const [modalOpen, setModalOpen] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
@@ -47,6 +38,20 @@ export default function AdminManagement() {
       if (res.data) setAdmins(res.data);
     }).catch(() => {});
   }, []);
+
+  const schoolOptions = [
+    { value: '', label: t('admin.selectSchool') },
+    { value: '1', label: 'SMK Tunku Abdul Rahman' },
+    { value: '2', label: 'SK Bukit Damansara' },
+    { value: '3', label: 'SMK Sri Hartamas' },
+    { value: '4', label: 'SK Bangsar' },
+    { value: '5', label: 'SMK Pantai' },
+  ];
+
+  const roles = [
+    { value: 'admin', label: t('admin.schoolAdmin') },
+    { value: 'super_admin', label: t('admin.superAdmin') },
+  ];
 
   function openAdd() {
     setEditId(null);
@@ -83,8 +88,8 @@ export default function AdminManagement() {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold text-text-primary font-heading">Admin Management</h2>
-        <Button icon={<Plus className="h-4 w-4" strokeWidth={1.5} />} onClick={openAdd}>Add Admin</Button>
+        <h2 className="text-lg font-semibold text-text-primary font-heading">{t('admin.adminManagement')}</h2>
+        {isSuper && <Button icon={<Plus className="h-4 w-4" strokeWidth={1.5} />} onClick={openAdd}>{t('admin.addAdmin')}</Button>}
       </div>
 
       <Card padding="none">
@@ -92,12 +97,12 @@ export default function AdminManagement() {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-border bg-surface-raised/50">
-                <th className="text-left px-4 py-2.5 text-[12px] text-text-tertiary font-medium">Name</th>
-                <th className="text-left px-4 py-2.5 text-[12px] text-text-tertiary font-medium">Email</th>
-                <th className="text-left px-4 py-2.5 text-[12px] text-text-tertiary font-medium">School</th>
-                <th className="text-center px-4 py-2.5 text-[12px] text-text-tertiary font-medium">Role</th>
-                <th className="text-center px-4 py-2.5 text-[12px] text-text-tertiary font-medium">Status</th>
-                <th className="text-center px-4 py-2.5 text-[12px] text-text-tertiary font-medium w-20">Actions</th>
+                <th className="text-left px-4 py-2.5 text-[12px] text-text-tertiary font-medium">{t('admin.name')}</th>
+                <th className="text-left px-4 py-2.5 text-[12px] text-text-tertiary font-medium">{t('admin.email')}</th>
+                <th className="text-left px-4 py-2.5 text-[12px] text-text-tertiary font-medium">{t('auth.school')}</th>
+                <th className="text-center px-4 py-2.5 text-[12px] text-text-tertiary font-medium">{t('admin.role')}</th>
+                <th className="text-center px-4 py-2.5 text-[12px] text-text-tertiary font-medium">{t('common.status')}</th>
+                {isSuper && <th className="text-center px-4 py-2.5 text-[12px] text-text-tertiary font-medium w-20">{t('common.actions')}</th>}
               </tr>
             </thead>
             <tbody>
@@ -108,20 +113,23 @@ export default function AdminManagement() {
                   <td className="px-4 py-3 text-text-secondary">{admin.school}</td>
                   <td className="px-4 py-3 text-center">
                     <Badge variant={admin.role === 'super_admin' ? 'accent' : 'default'} size="sm">
-                      {admin.role === 'super_admin' ? 'Super Admin' : 'School Admin'}
+                      {admin.role === 'super_admin' ? t('admin.superAdmin') : t('admin.schoolAdmin')}
                     </Badge>
                   </td>
                   <td className="px-4 py-3 text-center">
                     <Badge variant={admin.isActive ? 'success' : 'error'} dot size="sm">
-                      {admin.isActive ? 'Active' : 'Inactive'}
+                      {admin.isActive ? t('common.active') : t('common.inactive')}
                     </Badge>
                   </td>
-                  <td className="px-4 py-3 text-center">
-                    <div className="flex items-center justify-center gap-0.5">
-                      <button onClick={() => openEdit(admin.id)} className="p-1.5 rounded-md text-text-tertiary hover:text-accent hover:bg-accent/5 transition-colors"><Edit2 className="h-3.5 w-3.5" strokeWidth={1.5} /></button>
-                      <button onClick={() => handleDelete(admin.id)} className="p-1.5 rounded-md text-text-tertiary hover:text-error hover:bg-error/5 transition-colors"><Trash2 className="h-3.5 w-3.5" strokeWidth={1.5} /></button>
-                    </div>
-                  </td>
+                  {isSuper && (
+                    <td className="px-4 py-3 text-center">
+                      <div className="flex items-center justify-center gap-0.5">
+                        <button onClick={() => openEdit(admin.id)} className="p-1.5 rounded-md text-text-tertiary hover:text-accent hover:bg-accent/5 transition-colors"><Edit2 className="h-3.5 w-3.5" strokeWidth={1.5} /></button>
+                        <button onClick={async () => { await adminApi.updateAdmin(admin.id, { isActive: !admin.isActive }).catch(() => {}); setAdmins((prev) => prev.map((a) => a.id === admin.id ? { ...a, isActive: !a.isActive } : a)); }} className="p-1.5 rounded-md text-text-tertiary hover:text-warning hover:bg-warning/5 transition-colors"><Ban className="h-3.5 w-3.5" strokeWidth={1.5} /></button>
+                        <button onClick={() => handleDelete(admin.id)} className="p-1.5 rounded-md text-text-tertiary hover:text-error hover:bg-error/5 transition-colors"><Trash2 className="h-3.5 w-3.5" strokeWidth={1.5} /></button>
+                      </div>
+                    </td>
+                  )}
                 </tr>
               ))}
             </tbody>
@@ -129,15 +137,15 @@ export default function AdminManagement() {
         </div>
       </Card>
 
-      <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} title={editId ? 'Edit Admin' : 'Add Admin'} footer={<><Button variant="ghost" onClick={() => setModalOpen(false)}>Cancel</Button><Button onClick={handleSave}>{editId ? 'Save' : 'Create'}</Button></>}>
+      <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} title={editId ? t('admin.editAdmin') : t('admin.addAdmin')} footer={<><Button variant="ghost" onClick={() => setModalOpen(false)}>{t('common.cancel')}</Button><Button onClick={handleSave}>{editId ? t('common.save') : t('common.create')}</Button></>}>
         <div className="space-y-4">
-          <Input label="Name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
-          <Input label="Email" type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
+          <Input label={t('admin.name')} value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
+          <Input label={t('admin.email')} type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
           {!editId && (
             <div>
-              <label className="text-[13px] font-medium text-text mb-1.5 block">Password</label>
+              <label className="text-[13px] font-medium text-text mb-1.5 block">{t('admin.password')}</label>
               <div className="flex gap-2">
-                <Input value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} placeholder="Enter or generate" fullWidth />
+                <Input value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} placeholder={t('admin.enterOrGenerate')} fullWidth />
                 <Button variant="outline" size="md" onClick={() => setForm({ ...form, password: generatePassword() })} className="!shrink-0">
                   <RefreshCw className="h-4 w-4" strokeWidth={1.5} />
                 </Button>
@@ -145,7 +153,7 @@ export default function AdminManagement() {
             </div>
           )}
           <div>
-            <label className="text-[13px] font-medium text-text mb-1.5 block">Role</label>
+            <label className="text-[13px] font-medium text-text mb-1.5 block">{t('admin.role')}</label>
             <div className="flex bg-surface-raised rounded-md p-0.5 gap-0.5">
               {roles.map((r) => (
                 <button
@@ -165,7 +173,7 @@ export default function AdminManagement() {
             </div>
           </div>
           {form.role === 'admin' && (
-            <Select label="School" options={schoolOptions} value={form.schoolId} onChange={(v) => setForm({ ...form, schoolId: v })} />
+            <Select label={t('auth.school')} options={schoolOptions} value={form.schoolId} onChange={(v) => setForm({ ...form, schoolId: v })} />
           )}
         </div>
       </Modal>

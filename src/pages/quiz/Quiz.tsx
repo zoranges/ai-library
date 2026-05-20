@@ -1,11 +1,13 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { CheckCircle, XCircle, Trophy, ChevronLeft, Star, CheckCheck } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import Button from '@/components/ui/Button';
 import { quizApi, bookApi } from '@/utils/api';
 import type { QuizQuestion, QuizResult } from '@/types';
 
 export default function Quiz() {
+  const { t } = useTranslation();
   const { bookId } = useParams<{ bookId: string }>();
   const navigate = useNavigate();
   const [bookTitle, setBookTitle] = useState('');
@@ -47,7 +49,7 @@ export default function Quiz() {
     if (!bookId || answers.includes(-1)) return;
     setSubmitting(true);
     try {
-      const res = await quizApi.submitQuiz({ bookId, answers, timeSpent: 0 });
+      const res = await quizApi.submitQuiz({ bookId, answers, questions, timeSpent: 0 });
       setResult(res.data);
       setShowPointsAnim(true);
       setTimeout(() => setShowPointsAnim(false), 3000);
@@ -79,27 +81,27 @@ export default function Quiz() {
           className="flex items-center gap-1.5 text-sm text-text-tertiary hover:text-accent mb-8 transition-colors duration-micro ease-out-quart"
         >
           <ChevronLeft className="w-4 h-4" strokeWidth={1.5} />
-          返回
+          {t('common.back')}
         </button>
         <div className="bg-surface rounded-xl border border-border p-10 text-center animate-scale-in">
           <div className="inline-flex items-center justify-center w-12 h-12 bg-success-subtle rounded-lg mb-5">
             <CheckCheck className="w-6 h-6 text-success" strokeWidth={1.5} />
           </div>
           <h2 className="text-lg font-semibold text-text-primary font-heading mb-1">{bookTitle}</h2>
-          <p className="text-sm text-text-tertiary mb-8">您已完成此书的阅读测验</p>
+          <p className="text-sm text-text-tertiary mb-8">{t('quiz.alreadyCompleted')}</p>
           <div className="flex items-center justify-center gap-12">
             <div className="text-center">
               <div className="text-3xl font-mono font-medium text-text-primary tabular-nums">
                 {result.correctAnswers}<span className="text-text-tertiary">/{result.totalQuestions}</span>
               </div>
-              <div className="text-xs text-text-tertiary mt-1">正确</div>
+              <div className="text-xs text-text-tertiary mt-1">{t('quiz.correctAnswers')}</div>
             </div>
             <div className="w-px h-10 bg-border" />
             <div className="text-center">
               <div className="text-3xl font-mono font-medium text-text-primary tabular-nums">
                 {result.score}
               </div>
-              <div className="text-xs text-text-tertiary mt-1">得分</div>
+              <div className="text-xs text-text-tertiary mt-1">{t('quiz.score')}</div>
             </div>
           </div>
         </div>
@@ -115,14 +117,14 @@ export default function Quiz() {
           <div className="inline-flex items-center justify-center w-14 h-14 bg-warning-subtle rounded-xl mb-5">
             <Trophy className="w-7 h-7 text-warning" strokeWidth={1.5} />
           </div>
-          <h2 className="text-lg font-semibold text-text-primary font-heading mb-6">测验完成</h2>
+          <h2 className="text-lg font-semibold text-text-primary font-heading mb-6">{t('quiz.completed')}</h2>
           <div className="text-4xl font-mono font-medium text-text-primary tabular-nums mb-2">
             {result.correctAnswers}<span className="text-text-tertiary">/{result.totalQuestions}</span>
           </div>
-          <p className="text-sm text-text-tertiary mb-4">正确</p>
+          <p className="text-sm text-text-tertiary mb-4">{t('quiz.correctAnswers')}</p>
           <div className={`inline-flex items-center gap-1.5 text-sm font-medium transition-all duration-emphasized ease-out-quart ${showPointsAnim ? 'text-warning scale-110' : 'text-text-secondary'}`}>
             <Star className="w-4 h-4 text-warning" strokeWidth={1.5} />
-            获得 {earned} 积分
+            {t('quiz.pointsEarned')}: {earned}
           </div>
           <div className="mt-8 space-y-2 text-left">
             {questions.map((q, i) => {
@@ -139,24 +141,24 @@ export default function Quiz() {
                   ) : (
                     <XCircle className="w-4 h-4 text-error shrink-0" strokeWidth={1.5} />
                   )}
-                  <span className="text-text-primary">第{i + 1}题</span>
+                  <span className="text-text-primary">{t('quiz.question')} {i + 1}</span>
                   {!isCorrect && (
                     <span className="text-text-tertiary ml-auto text-xs">
-                      正确: {q.options[q.correctAnswer]}
+                      {t('quiz.correctAnswers')}: {q.options[q.correctAnswer]}
                     </span>
                   )}
                 </div>
               );
             })}
           </div>
-          <Button className="mt-8" onClick={() => navigate(-1)}>返回图书</Button>
+          <Button className="mt-8" onClick={() => navigate(-1)}>{t('common.back')}</Button>
         </div>
       </div>
     );
   }
 
   const q = questions[currentQ];
-  if (!q) return <div className="text-center py-16 px-4 text-text-tertiary">暂无测验题目</div>;
+  if (!q) return <div className="text-center py-16 px-4 text-text-tertiary">{t('quiz.noQuestions')}</div>;
 
   return (
     <div className="max-w-xl mx-auto">
@@ -165,11 +167,11 @@ export default function Quiz() {
         className="flex items-center gap-1.5 text-sm text-text-tertiary hover:text-accent mb-8 transition-colors duration-micro ease-out-quart"
       >
         <ChevronLeft className="w-4 h-4" strokeWidth={1.5} />
-        返回
+        {t('common.back')}
       </button>
 
       <div className="mb-6">
-        <h1 className="text-lg font-extrabold text-text-primary font-heading">阅读测验</h1>
+        <h1 className="text-lg font-extrabold text-text-primary font-heading">{t('quiz.title')}</h1>
         <p className="text-sm text-text-tertiary mt-0.5">{bookTitle}</p>
       </div>
 
@@ -241,14 +243,14 @@ export default function Quiz() {
           disabled={currentQ === 0}
           onClick={() => setCurrentQ(currentQ - 1)}
         >
-          上一题
+          {t('quiz.previous')}
         </Button>
         {currentQ < questions.length - 1 ? (
           <Button
             disabled={answers[currentQ] === -1}
             onClick={() => setCurrentQ(currentQ + 1)}
           >
-            下一题
+            {t('quiz.next')}
           </Button>
         ) : (
           <Button
@@ -256,7 +258,7 @@ export default function Quiz() {
             loading={submitting}
             onClick={handleSubmit}
           >
-            提交全部
+            {t('quiz.submitAll')}
           </Button>
         )}
       </div>

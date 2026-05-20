@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { Search, Heart, ChevronLeft, ChevronRight, SlidersHorizontal } from 'lucide-react';
 import Button from '@/components/ui/Button';
 import Badge from '@/components/ui/Badge';
@@ -37,6 +38,7 @@ const DIFFICULTY_COLOR: Record<string, { dot: string; variant: 'success' | 'warn
 };
 
 export default function Books() {
+  const { t } = useTranslation();
   const { books, categories, pagination, filters, isLoading, fetchBooks, fetchCategories, setFilters, setPage } = useBookStore();
   const [searchQuery, setSearchQuery] = useState(filters.search || '');
   const [showFilters, setShowFilters] = useState(false);
@@ -52,13 +54,13 @@ export default function Books() {
   }
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+    <div className="px-4 sm:px-6 lg:px-8 py-6">
       {/* Header */}
       <div className="flex items-center justify-between mb-5">
         <div>
-          <h1 className="text-xl font-bold text-text-primary">Library</h1>
+          <h1 className="text-xl font-bold text-text-primary">{t('books.bookList')}</h1>
           <p className="text-sm text-text-tertiary mt-0.5">
-            {pagination.total} books
+            {pagination.total} {t('books.booksCount')}
             {filters.categoryId && categories.find(c => c.id === filters.categoryId) && (
               <span> &middot; {categories.find(c => c.id === filters.categoryId)!.name}</span>
             )}
@@ -69,7 +71,7 @@ export default function Books() {
           className="lg:hidden flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-text-secondary border border-border rounded-lg hover:bg-bg-tertiary transition-colors"
         >
           <SlidersHorizontal className="h-3.5 w-3.5" strokeWidth={1.5} />
-          Filters
+          {t('books.filters')}
         </button>
       </div>
 
@@ -80,20 +82,20 @@ export default function Books() {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-text-tertiary" strokeWidth={1.5} />
             <input
               type="text"
-              placeholder="Search books, authors, keywords..."
+              placeholder={t('home.searchPlaceholder')}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full h-10 bg-bg-tertiary/50 border border-border rounded-lg pl-10 pr-4 text-sm text-text-primary placeholder:text-text-tertiary focus:outline-none focus:ring-2 focus:ring-accent/20 focus:border-accent focus:bg-bg-primary transition-all duration-150"
             />
           </div>
-          <Button type="submit" className="h-10 rounded-lg shrink-0">Search</Button>
+          <Button type="submit" className="h-10 rounded-lg shrink-0">{t('common.search')}</Button>
         </form>
 
         <div className={showFilters ? 'block space-y-3' : 'hidden lg:block'}>
           <div className="flex flex-col lg:flex-row lg:items-center gap-3">
             {/* Language */}
             <div className="flex items-center gap-2">
-              <span className="text-[11px] font-semibold text-text-tertiary uppercase tracking-wider shrink-0">Language</span>
+              <span className="text-[11px] font-semibold text-text-tertiary uppercase tracking-wider shrink-0">{t('books.language')}</span>
               <div className="flex gap-1">
                 {LANGUAGE_CHIPS.map((chip) => (
                   <button
@@ -105,7 +107,7 @@ export default function Books() {
                         : 'bg-bg-tertiary/50 text-text-tertiary hover:text-text-primary hover:bg-bg-tertiary'
                     }`}
                   >
-                    {chip.label}
+                    {chip.value === '' ? t('common.all') : chip.label}
                   </button>
                 ))}
               </div>
@@ -115,19 +117,29 @@ export default function Books() {
 
             {/* Difficulty */}
             <div className="flex items-center gap-2">
-              <span className="text-[11px] font-semibold text-text-tertiary uppercase tracking-wider shrink-0">Level</span>
+              <span className="text-[11px] font-semibold text-text-tertiary uppercase tracking-wider shrink-0">{t('books.difficulty')}</span>
               <div className="flex gap-1">
-                {DIFFICULTY_CHIPS.map((chip) => (
+                <button
+                  onClick={() => setFilters({ difficulty: undefined as any })}
+                  className={`px-2.5 py-1.5 text-[11px] font-semibold rounded-lg transition-all duration-150 ${
+                    !filters.difficulty
+                      ? 'bg-accent text-white shadow-1'
+                      : 'bg-bg-tertiary/50 text-text-tertiary hover:text-text-primary hover:bg-bg-tertiary'
+                  }`}
+                >
+                  {t('common.all')}
+                </button>
+                {DIFFICULTY_CHIPS.filter(chip => chip.value !== '').map((chip) => (
                   <button
                     key={chip.value}
-                    onClick={() => setFilters({ difficulty: (chip.value || undefined) as any })}
+                    onClick={() => setFilters({ difficulty: (chip.value) as any })}
                     className={`px-2.5 py-1.5 text-[11px] font-semibold rounded-lg transition-all duration-150 ${
-                      (filters.difficulty || '') === chip.value
+                      filters.difficulty === chip.value
                         ? 'bg-accent text-white shadow-1'
                         : 'bg-bg-tertiary/50 text-text-tertiary hover:text-text-primary hover:bg-bg-tertiary'
                     }`}
                   >
-                    {chip.label}
+                    {chip.value === 'beginner' ? t('books.beginner') : chip.value === 'intermediate' ? t('books.intermediate') : t('books.advanced')}
                   </button>
                 ))}
               </div>
@@ -137,13 +149,13 @@ export default function Books() {
 
             {/* Sort */}
             <div className="flex items-center gap-2">
-              <span className="text-[11px] font-semibold text-text-tertiary uppercase tracking-wider shrink-0">Sort</span>
+              <span className="text-[11px] font-semibold text-text-tertiary uppercase tracking-wider shrink-0">{t('books.sortBy')}</span>
               <Select
                 options={[
-                  { value: 'createdAt', label: 'Newest' },
-                  { value: 'readCount', label: 'Most Popular' },
-                  { value: 'title', label: 'Title A-Z' },
-                  { value: 'rating', label: 'Top Rated' },
+                  { value: 'createdAt', label: t('books.newest') },
+                  { value: 'readCount', label: t('books.mostPopular') },
+                  { value: 'title', label: t('books.titleAZ') },
+                  { value: 'rating', label: t('books.topRated') },
                 ]}
                 value={filters.sortBy || 'createdAt'}
                 onChange={(value) => {
@@ -164,7 +176,7 @@ export default function Books() {
           {/* Category chips */}
           {categories.length > 0 && (
             <div className="flex items-center gap-2 pt-1">
-              <span className="text-[11px] font-semibold text-text-tertiary uppercase tracking-wider shrink-0">Category</span>
+              <span className="text-[11px] font-semibold text-text-tertiary uppercase tracking-wider shrink-0">{t('books.category')}</span>
               <div className="flex gap-1 flex-wrap">
                 <button
                   onClick={() => setFilters({ categoryId: undefined })}
@@ -174,7 +186,7 @@ export default function Books() {
                       : 'bg-bg-tertiary/50 text-text-tertiary hover:text-text-primary hover:bg-bg-tertiary'
                   }`}
                 >
-                  All
+                  {t('common.all')}
                 </button>
                 {categories.map((cat) => (
                   <button
@@ -197,7 +209,7 @@ export default function Books() {
 
       {/* Book grid */}
       {isLoading ? (
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-5">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-5">
           {Array.from({ length: 10 }).map((_, i) => (
             <div key={i} className="skeleton h-64 rounded-xl" />
           ))}
@@ -207,15 +219,15 @@ export default function Books() {
           <div className="text-5xl mb-4 opacity-30">
             <BookCover book={{ id: '' }} className="w-20 h-28 mx-auto rounded-lg" iconClassName="w-8 h-8" />
           </div>
-          <h3 className="text-lg font-bold text-text-primary mb-1">No books found</h3>
-          <p className="text-sm text-text-tertiary">Try adjusting your filters or search term</p>
+          <h3 className="text-lg font-bold text-text-primary mb-1">{t('books.noBooksFound')}</h3>
+          <p className="text-sm text-text-tertiary">{t('books.noBooksHint')}</p>
         </div>
       ) : (
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-5">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-5">
           {books.map((book) => (
             <Link key={book.id} to={`/books/${book.id}`} className="group">
               <div className="bg-surface rounded-xl border border-border overflow-hidden shadow-1 group-hover:shadow-2 group-hover:-translate-y-0.5 transition-all duration-200 h-full flex flex-col">
-                <div className="h-44 relative overflow-hidden shrink-0">
+                <div className="h-44 relative overflow-hidden shrink-0 book-3d">
                   <BookCover book={book} className="w-full h-full" iconClassName="w-6 h-6 text-text-tertiary/40" />
                   <div className="absolute inset-0 bg-gradient-to-b from-white/10 to-transparent pointer-events-none" />
                   <button

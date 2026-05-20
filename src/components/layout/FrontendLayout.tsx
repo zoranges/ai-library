@@ -1,24 +1,27 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Link, useNavigate, Outlet, useLocation } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import {
   BookOpen, User, LogOut, Menu, X, Bell, Moon, Sun, Shield,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuthStore } from '@/stores/authStore';
 import { useTheme } from '@/hooks/useTheme';
-
-const NAV_ITEMS = [
-  { key: 'home', label: 'Home', path: '/' },
-  { key: 'library', label: 'Library', path: '/books' },
-  { key: 'discover', label: 'Discover', path: '/leaderboard' },
-];
+import LanguageSwitcher from '@/components/LanguageSwitcher';
 
 export default function FrontendLayout() {
+  const { t } = useTranslation();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const { user, isAuthenticated, fetchMe, logout } = useAuthStore();
   const { toggleTheme, isDark } = useTheme();
   const navigate = useNavigate();
   const location = useLocation();
+
+  const NAV_ITEMS = useMemo(() => [
+    { key: 'home', label: t('nav.home'), path: '/' },
+    { key: 'library', label: t('nav.library'), path: '/books' },
+    { key: 'discover', label: t('nav.discover', 'Discover'), path: '/leaderboard' },
+  ], [t]);
 
   useEffect(() => {
     if (isAuthenticated && !user) fetchMe();
@@ -70,13 +73,13 @@ export default function FrontendLayout() {
           </nav>
 
           {/* Admin link */}
-          {(user?.role === 'super_admin' || user?.role === 'school_admin' || user?.role === 'admin') && (
+          {(user?.role === 'super_admin' || user?.role === 'admin') && (
             <Link
               to="/admin"
               className="hidden md:flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-text-secondary hover:text-accent hover:bg-accent/5 rounded-md transition-colors"
             >
               <Shield className="h-4 w-4" strokeWidth={1.5} />
-              <span className="hidden lg:inline">Admin</span>
+              <span className="hidden lg:inline">{t('nav.admin')}</span>
             </Link>
           )}
 
@@ -88,15 +91,13 @@ export default function FrontendLayout() {
             <button
               onClick={toggleTheme}
               className="p-2 rounded-md text-text-secondary hover:text-text-primary hover:bg-bg-tertiary transition-colors"
-              title={isDark ? 'Light mode' : 'Dark mode'}
+              title={isDark ? t('common.lightMode', 'Light mode') : t('common.darkMode', 'Dark mode')}
             >
               {isDark ? <Sun className="h-4 w-4" strokeWidth={1.5} /> : <Moon className="h-4 w-4" strokeWidth={1.5} />}
             </button>
 
-            {/* Language toggle */}
-            <button className="hidden sm:flex items-center justify-center px-2 py-1 text-xs font-semibold text-text-secondary hover:text-text-primary hover:bg-bg-tertiary rounded-md transition-colors">
-              EN
-            </button>
+            {/* Language switcher */}
+            <LanguageSwitcher />
 
             {/* Notification */}
             <button className="relative p-2 rounded-md text-text-secondary hover:text-text-primary hover:bg-bg-tertiary transition-colors">
@@ -121,7 +122,7 @@ export default function FrontendLayout() {
                 <button
                   onClick={handleLogout}
                   className="p-1.5 rounded-md text-text-tertiary hover:text-error hover:bg-error/5 transition-colors hidden sm:block"
-                  title="Logout"
+                  title={t('nav.logout')}
                 >
                   <LogOut className="h-4 w-4" strokeWidth={1.5} />
                 </button>
@@ -132,13 +133,13 @@ export default function FrontendLayout() {
                   to="/login"
                   className="px-3 py-1.5 text-sm font-medium text-text-secondary hover:text-text-primary hover:bg-bg-tertiary rounded-md transition-colors"
                 >
-                  Login
+                  {t('auth.login')}
                 </Link>
                 <Link
                   to="/register"
                   className="px-3 py-1.5 text-sm font-medium text-white bg-accent rounded-md hover:bg-accent-hover transition-colors shadow-1"
                 >
-                  Register
+                  {t('auth.register')}
                 </Link>
               </div>
             )}
@@ -171,13 +172,13 @@ export default function FrontendLayout() {
                   {item.label}
                 </Link>
               ))}
-              {(user?.role === 'super_admin' || user?.role === 'school_admin' || user?.role === 'admin') && (
+              {(user?.role === 'super_admin' || user?.role === 'admin') && (
                 <Link
                   to="/admin"
                   className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-text-secondary hover:text-accent hover:bg-accent/5 rounded-md transition-colors"
                 >
                   <Shield className="h-4 w-4" strokeWidth={1.5} />
-                  Admin
+                  {t('nav.admin')}
                 </Link>
               )}
               <hr className="border-border my-2" />
@@ -185,14 +186,14 @@ export default function FrontendLayout() {
                 to="/profile"
                 className="block px-3 py-2 text-sm font-medium text-text-secondary hover:text-text-primary hover:bg-bg-tertiary rounded-md transition-colors"
               >
-                Profile
+                {t('nav.profile')}
               </Link>
               {isAuthenticated && (
                 <button
                   onClick={handleLogout}
                   className="w-full text-left px-3 py-2 text-sm font-medium text-error/80 hover:text-error hover:bg-error/5 rounded-md transition-colors"
                 >
-                  Logout
+                  {t('nav.logout')}
                 </button>
               )}
             </div>
@@ -217,38 +218,38 @@ export default function FrontendLayout() {
                 <span className="text-base font-bold text-text-primary">AI Library</span>
               </div>
               <p className="text-sm text-text-tertiary leading-relaxed">
-                AI-powered digital reading platform.
+                {t('home.poweredBy', 'AI-powered digital reading platform.')}
               </p>
             </div>
             <div>
-              <h4 className="text-xs font-bold text-text-primary uppercase tracking-wider mb-3">Navigation</h4>
+              <h4 className="text-xs font-bold text-text-primary uppercase tracking-wider mb-3">{t('common.navigation', 'Navigation')}</h4>
               <div className="space-y-2">
-                <Link to="/" className="block text-sm text-text-tertiary hover:text-accent transition-colors">Home</Link>
-                <Link to="/books" className="block text-sm text-text-tertiary hover:text-accent transition-colors">Library</Link>
-                <Link to="/leaderboard" className="block text-sm text-text-tertiary hover:text-accent transition-colors">Leaderboard</Link>
+                <Link to="/" className="block text-sm text-text-tertiary hover:text-accent transition-colors">{t('nav.home')}</Link>
+                <Link to="/books" className="block text-sm text-text-tertiary hover:text-accent transition-colors">{t('nav.library')}</Link>
+                <Link to="/leaderboard" className="block text-sm text-text-tertiary hover:text-accent transition-colors">{t('nav.leaderboard')}</Link>
               </div>
             </div>
             <div>
-              <h4 className="text-xs font-bold text-text-primary uppercase tracking-wider mb-3">My Account</h4>
+              <h4 className="text-xs font-bold text-text-primary uppercase tracking-wider mb-3">{t('common.myAccount', 'My Account')}</h4>
               <div className="space-y-2">
-                <Link to="/profile" className="block text-sm text-text-tertiary hover:text-accent transition-colors">Profile</Link>
-                <Link to="/profile/favorites" className="block text-sm text-text-tertiary hover:text-accent transition-colors">Favorites</Link>
-                <Link to="/profile/achievements" className="block text-sm text-text-tertiary hover:text-accent transition-colors">Achievements</Link>
+                <Link to="/profile" className="block text-sm text-text-tertiary hover:text-accent transition-colors">{t('nav.profile')}</Link>
+                <Link to="/profile/favorites" className="block text-sm text-text-tertiary hover:text-accent transition-colors">{t('nav.favorites')}</Link>
+                <Link to="/profile/achievements" className="block text-sm text-text-tertiary hover:text-accent transition-colors">{t('nav.achievements')}</Link>
               </div>
             </div>
             <div>
-              <h4 className="text-xs font-bold text-text-primary uppercase tracking-wider mb-3">Legal</h4>
+              <h4 className="text-xs font-bold text-text-primary uppercase tracking-wider mb-3">{t('common.legal', 'Legal')}</h4>
               <div className="space-y-2">
-                <a href="#" className="block text-sm text-text-tertiary hover:text-accent transition-colors">Privacy Policy</a>
-                <a href="#" className="block text-sm text-text-tertiary hover:text-accent transition-colors">Terms of Use</a>
-                <a href="#" className="block text-sm text-text-tertiary hover:text-accent transition-colors">Help</a>
-                <a href="#" className="block text-sm text-text-tertiary hover:text-accent transition-colors">Contact Us</a>
+                <a href="#" className="block text-sm text-text-tertiary hover:text-accent transition-colors">{t('common.privacyPolicy', 'Privacy Policy')}</a>
+                <a href="#" className="block text-sm text-text-tertiary hover:text-accent transition-colors">{t('common.termsOfUse', 'Terms of Use')}</a>
+                <a href="#" className="block text-sm text-text-tertiary hover:text-accent transition-colors">{t('common.help', 'Help')}</a>
+                <a href="#" className="block text-sm text-text-tertiary hover:text-accent transition-colors">{t('common.contactUs', 'Contact Us')}</a>
               </div>
             </div>
           </div>
           <div className="mt-8 pt-5 border-t border-border text-center">
             <p className="text-xs text-text-tertiary">
-              &copy; 2025 AI Library. All rights reserved.
+              {t('common.copyright', '© 2025 AI Library. All rights reserved.')}
             </p>
           </div>
         </div>

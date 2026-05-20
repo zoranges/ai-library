@@ -1,11 +1,13 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Heart, BookOpen, X } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import BookCover from '@/components/BookCover';
 import { favoriteApi } from '@/utils/api';
 import type { Favorite } from '@/types';
 
 export default function Favorites() {
+  const { t } = useTranslation();
   const [favorites, setFavorites] = useState<Favorite[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [removingId, setRemovingId] = useState<string | null>(null);
@@ -56,9 +58,9 @@ export default function Favorites() {
         <div className="w-16 h-16 mx-auto mb-3 rounded-full bg-accent/10 flex items-center justify-center">
           <Heart className="w-8 h-8 text-accent" strokeWidth={1.5} />
         </div>
-        <p className="text-sm font-bold text-text-secondary mt-3">No favorites yet</p>
+        <p className="text-sm font-bold text-text-secondary mt-3">{t('common.noData')}</p>
         <Link to="/books" className="inline-block mt-2 text-sm font-bold text-accent hover:text-accent-hover transition-colors">
-          Browse the library
+          {t('home.allBooks')}
         </Link>
       </div>
     );
@@ -81,7 +83,7 @@ export default function Favorites() {
             </button>
             <div className="p-3">
               <h3 className="text-sm font-bold text-text-primary line-clamp-1 group-hover:text-accent transition-colors duration-200">
-                {fav.book?.title || 'Unknown Book'}
+                {fav.book?.title || t('books.title')}
               </h3>
               <p className="text-xs text-text-tertiary mt-0.5">{fav.book?.author || ''}</p>
             </div>

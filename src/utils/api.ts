@@ -148,6 +148,9 @@ export const readingApi = {
 
   getStats: () =>
     request<any>('/reading/stats'),
+
+  getReport: () =>
+    request<any>('/reading/report'),
 };
 
 export const favoriteApi = {
@@ -165,6 +168,18 @@ export const favoriteApi = {
 
   checkFavorite: (bookId: string) =>
     request<{ isFavorite: boolean }>(`/learning/favorites/check/${bookId}`),
+
+  getBookmarks: (bookId?: string) =>
+    request<any[]>(`/learning/bookmarks${bookId ? buildQueryString({ bookId }) : ''}`),
+
+  addBookmark: (data: { bookId: string; cfi: string; label?: string; page?: number }) =>
+    request<any>('/learning/bookmarks', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
+  deleteBookmark: (id: string) =>
+    request<void>(`/learning/bookmarks/${id}`, { method: 'DELETE' }),
 };
 
 export const quizApi = {
@@ -174,7 +189,7 @@ export const quizApi = {
       body: JSON.stringify({ bookId, count: 5 }),
     }),
 
-  submitQuiz: (data: { bookId: string; answers: number[]; timeSpent: number }) =>
+  submitQuiz: (data: { bookId: string; answers: number[]; questions?: Array<{ correctAnswer: number }>; timeSpent: number }) =>
     request<any>('/ai/quiz/submit', {
       method: 'POST',
       body: JSON.stringify(data),
@@ -212,10 +227,10 @@ export const pointApi = {
 };
 
 export const leaderboardApi = {
-  getLeaderboard: (params?: { schoolId?: string; period?: 'week' | 'month' | 'all'; page?: number; pageSize?: number; type?: string }) =>
+  getLeaderboard: (params?: { schoolId?: string; district?: string; state?: string; country?: string; period?: 'month' | 'year' | 'all'; region?: string; regionId?: string; type?: string; page?: number; pageSize?: number }) =>
     request<any>(`/leaderboard${buildQueryString(params || {})}`),
 
-  getSchoolLeaderboard: (schoolId: string, params?: { period?: 'week' | 'month' | 'all' }) =>
+  getSchoolLeaderboard: (schoolId: string, params?: { period?: 'month' | 'year' | 'all' }) =>
     request<any[]>(`/leaderboard${buildQueryString({ schoolId, ...params })}`),
 };
 
@@ -251,11 +266,17 @@ export const aiApi = {
       method: 'POST',
       body: JSON.stringify(data),
     }),
+
+  searchInDocument: (bookId: string, query: string) =>
+    request<{ results: Array<{ page: number; text: string; context: string }> }>('/ai/search-document', {
+      method: 'POST',
+      body: JSON.stringify({ bookId, query }),
+    }),
 };
 
 export const adminApi = {
-  getDashboard: () =>
-    request<any>('/admin/dashboard'),
+  getDashboard: (params?: { dateRange?: string }) =>
+    request<any>(`/admin/dashboard${buildQueryString(params || {})}`),
 
   getSchools: (params?: { page?: number; pageSize?: number; search?: string }) =>
     request<PaginatedResponse<any>>(`/admin/schools${buildQueryString(params || {})}`),
@@ -346,11 +367,86 @@ export const adminApi = {
       body: JSON.stringify(data),
     }),
 
+  uploadAvatar: (data: { avatar: string }) =>
+    request<any>('/admin/account/avatar', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
+  getAccountDevices: () =>
+    request<any[]>('/admin/account/devices'),
+
+  toggleIpBinding: (data: { enabled: boolean }) =>
+    request<any>('/admin/account/ip-bind', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
+  deleteAccount: () =>
+    request<void>('/admin/account', { method: 'DELETE' }),
+
   switchRole: (role: string) =>
     request<void>('/admin/switch-role', {
       method: 'POST',
       body: JSON.stringify({ role }),
     }),
+
+  deregisterStudent: (id: string) =>
+    request<void>(`/admin/students/${id}`, { method: 'DELETE' }),
+
+  reregisterStudent: (id: string) =>
+    request<void>(`/admin/students/${id}/reregister`, { method: 'POST' }),
+
+  getStudentReport: (id: string, params?: { startDate?: string; endDate?: string }) =>
+    request<any>(`/admin/students/${id}/report${buildQueryString(params || {})}`),
+
+  getTeachers: (params?: { page?: number; pageSize?: number; schoolId?: string }) =>
+    request<PaginatedResponse<any>>(`/admin/teachers${buildQueryString(params || {})}`),
+
+  createTeacher: (data: any) =>
+    request<any>('/admin/teachers', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
+  updateTeacher: (id: string, data: any) =>
+    request<any>(`/admin/teachers/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
+
+  deleteTeacher: (id: string) =>
+    request<void>(`/admin/teachers/${id}`, { method: 'DELETE' }),
+
+  exportStudentReport: (id: string, params?: { startDate?: string; endDate?: string }) =>
+    request<any>(`/admin/export/student-report/${id}${buildQueryString(params || {})}`),
+
+  exportSchoolReport: (schoolId: string) =>
+    request<any>(`/admin/export/school-report/${schoolId}`),
+
+  exportStudentsReport: (studentIds: string[]) =>
+    request<any>(`/admin/export/students-report?studentIds=${studentIds.join(',')}`),
+
+  getAIConfig: () =>
+    request<any[]>('/admin/ai-config'),
+
+  createAIConfig: (data: any) =>
+    request<any>('/admin/ai-config', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
+  updateAIConfig: (key: string, data: any) =>
+    request<any>(`/admin/ai-config/${key}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
+
+  deleteAIConfig: (key: string) =>
+    request<void>(`/admin/ai-config/${key}`, { method: 'DELETE' }),
+
+  search: (q: string, limit?: number) =>
+    request<any>(`/admin/search${buildQueryString({ q, limit })}`),
 };
 
 export const userApi = {

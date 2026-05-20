@@ -1,5 +1,6 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import * as pdfjsLib from 'pdfjs-dist';
 import { TextLayer } from 'pdfjs-dist';
 import EpubReader from './EpubReader';
@@ -8,7 +9,7 @@ import {
   ArrowLeft, ZoomIn, ZoomOut, Sparkles, ChevronLeft, ChevronRight,
   Highlighter, Pencil, Heart, X, Sun, Moon, BookOpen, List,
   Maximize2, Minimize2, RotateCw, MessageSquare, Bookmark,
-  Settings2, ChevronDown
+  Settings2, ChevronDown, Volume2
 } from 'lucide-react';
 import AIAssistant from './AIAssistant';
 import { useReadingStore } from '@/stores/readingStore';
@@ -49,6 +50,7 @@ interface PageHighlight {
 }
 
 export default function Reader() {
+  const { t } = useTranslation();
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { currentBook, fetchBookById } = useBookStore();
@@ -74,6 +76,8 @@ export default function Reader() {
   const [selection, setSelection] = useState<TextSelection | null>(null);
   const [showSelectionMenu, setShowSelectionMenu] = useState(false);
   const [selectionPos, setSelectionPos] = useState({ x: 0, y: 0 });
+  const [speakingSelection, setSpeakingSelection] = useState(false);
+  const [quizPrompt, setQuizPrompt] = useState(false);
   const [pageInput, setPageInput] = useState('');
   const [showPageJump, setShowPageJump] = useState(false);
   const [pdfLoading, setPdfLoading] = useState(true);
@@ -118,10 +122,16 @@ export default function Reader() {
     }
   }, [currentProgress, currentBook]);
 
+  const quizPromptShownRef = useRef(false);
+
   useEffect(() => {
     if (id && currentPage > 0 && totalPages > 0) {
-      const timer = setTimeout(() => {
-        saveProgress(id, currentPage, totalPages);
+      const timer = setTimeout(async () => {
+        const result = await saveProgress(id, currentPage, totalPages);
+        if (result?.quizAvailable && !quizPromptShownRef.current) {
+          quizPromptShownRef.current = true;
+          setQuizPrompt(true);
+        }
       }, 3000);
       return () => clearTimeout(timer);
     }
@@ -172,7 +182,7 @@ export default function Reader() {
         loadingTaskRef.current = null;
         if (err?.name === 'RenderingCancelledException' || err?.message?.includes('destroyed')) return;
         console.error('PDF loading error:', err);
-        setPdfError('无法加载PDF文件：' + (err?.message || '未知错误'));
+        setPdfError(t('common.loading') + ': ' + (err?.message || ''));
         setPdfLoading(false);
       }
     );
@@ -338,6 +348,29 @@ export default function Reader() {
     setSelection(null);
   }
 
+  function handleReadSelectionAloud() {
+    if (!selection) return;
+    if (!('speechSynthesis' in window)) return;
+
+    if (speakingSelection) {
+      window.speechSynthesis.cancel();
+      setSpeakingSelection(false);
+      return;
+    }
+
+    const u = new SpeechSynthesisUtterance(selection.text);
+    u.lang = 'zh-CN';
+    u.rate = 1.0;
+    u.onstart = () => setSpeakingSelection(true);
+    u.onend = () => setSpeakingSelection(false);
+    u.onerror = () => setSpeakingSelection(false);
+    window.speechSynthesis.speak(u);
+
+    window.getSelection()?.removeAllRanges();
+    setShowSelectionMenu(false);
+    setSelection(null);
+  }
+
   function handleAddNote() {
     if (!id || !noteText.trim()) return;
     addHighlight({ bookId: id, text: noteText, color: 'yellow', page: currentPage, note: noteText });
@@ -369,14 +402,58 @@ export default function Reader() {
   const theme = THEME_MODES[themeMode];
   const pageHighlights = highlights.filter((h: any) => h.page === currentPage);
 
+  // Resolve theme labels via t()
+  const themeLabelMap: Record<ThemeMode, string> = {
+    light: t('reader.dayTheme'),
+    sepia: t('reader.eyeCareTheme'),
+    dark: t('reader.nightTheme'),
+  };
+
+  // Resolve highlight color labels via t()
+  const highlightColorLabelMap: Record<string, string> = {
+    yellow: t('common.yellow'),
+    green: t('common.green'),
+    blue: t('common.blue'),
+    pink: t('common.pink'),
+    purple: t('common.purple'),
+  };
+
   if (currentBook?.fileType === 'epub' && currentBook?.fileUrl) {
     return (
-      <EpubReader
-        url={currentBook.fileUrl}
-        bookId={id || ''}
-        bookTitle={currentBook.title}
-        onNavigateBack={() => navigate(-1)}
-      />
+      <>
+        <EpubReader
+          url={currentBook.fileUrl}
+          bookId={id || ''}
+          bookTitle={currentBook.title}
+          onNavigateBack={() => navigate(-1)}
+          onQuizAvailable={() => setQuizPrompt(true)}
+        />
+        {quizPrompt && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm" onClick={() => setQuizPrompt(false)}>
+            <div className="bg-surface rounded-2xl shadow-3 p-8 max-w-sm mx-4 text-center animate-[scale-in_0.25s_ease-out] z-10" onClick={(e) => e.stopPropagation()}>
+              <div className="text-5xl mb-4">🎉</div>
+              <h2 className="text-xl font-extrabold text-text-primary mb-2">{t('quiz.title')}</h2>
+              <p className="text-sm text-text-secondary leading-relaxed mb-6">
+                {t('home.achievementsHint', 'You finished this book! Test your understanding with a quick quiz.')}
+              </p>
+              <div className="flex items-center gap-3 justify-center">
+                <button
+                  onClick={() => { setQuizPrompt(false); navigate(`/quiz/${id}`); }}
+                  className="px-5 py-2.5 bg-accent text-white text-sm font-semibold rounded-xl hover:bg-accent-hover transition-colors shadow-sm"
+                >
+                  {t('quiz.startQuiz')}
+                </button>
+                <button
+                  onClick={() => setQuizPrompt(false)}
+                  className="px-5 py-2.5 text-sm font-medium text-text-tertiary hover:text-text-primary transition-colors"
+                >
+                  {t('common.cancel')}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+      </>
     );
   }
 
@@ -396,7 +473,7 @@ export default function Reader() {
           </button>
           <div className="flex-1 min-w-0 text-center px-3">
             <h1 className="text-[13px] font-medium truncate" style={{ color: theme.text, opacity: 0.85 }}>
-              {currentBook?.title || '加载中...'}
+              {currentBook?.title || t('common.loading')}
             </h1>
           </div>
           <div className="w-[60px]" />
@@ -410,7 +487,7 @@ export default function Reader() {
               <BookOpen className="w-10 h-10" style={{ color: '#ef4444' }} strokeWidth={1.5} />
             </div>
             <h2 className="text-xl font-semibold mb-2" style={{ color: theme.text }}>
-              无法打开文件
+              {t('common.error', { defaultValue: 'Cannot open file' })}
             </h2>
             <p className="text-sm leading-relaxed mb-8" style={{ color: theme.text, opacity: 0.5 }}>
               {pdfError}
@@ -422,7 +499,7 @@ export default function Reader() {
                 style={{ color: theme.text, background: themeMode === 'dark' ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)' }}
               >
                 <ArrowLeft className="w-4 h-4" strokeWidth={1.5} />
-                返回
+                {t('common.back')}
               </button>
               {currentBook && (
                 <button
@@ -431,7 +508,7 @@ export default function Reader() {
                   style={{ color: '#fff', background: '#6366f1' }}
                 >
                   <Sparkles className="w-4 h-4" strokeWidth={1.5} />
-                  AI 问答
+                  {t('reader.aiAssistant')}
                 </button>
               )}
             </div>
@@ -473,7 +550,7 @@ export default function Reader() {
 
         <div className="flex-1 min-w-0 text-center px-3">
           <h1 className="text-[13px] font-medium truncate" style={{ color: theme.text, opacity: 0.85 }}>
-            {currentBook?.title || '加载中...'}
+            {currentBook?.title || t('common.loading')}
           </h1>
         </div>
 
@@ -482,7 +559,7 @@ export default function Reader() {
             onClick={() => setShowOutline(!showOutline)}
             className="p-1.5 rounded-md transition-colors duration-150 hover:opacity-70"
             style={{ color: theme.text, opacity: 0.6 }}
-            title="目录"
+            title={t('reader.tableOfContents')}
           >
             <List className="w-4 h-4" strokeWidth={1.5} />
           </button>
@@ -490,7 +567,7 @@ export default function Reader() {
             onClick={toggleBookmark}
             className="p-1.5 rounded-md transition-colors duration-150 hover:opacity-70"
             style={{ color: bookmarks.includes(currentPage) ? '#facc15' : theme.text, opacity: bookmarks.includes(currentPage) ? 1 : 0.6 }}
-            title="书签"
+            title={t('reader.bookmarks')}
           >
             <Bookmark className="w-4 h-4" strokeWidth={1.5} fill={bookmarks.includes(currentPage) ? 'currentColor' : 'none'} />
           </button>
@@ -499,7 +576,7 @@ export default function Reader() {
             onClick={() => handleZoom(-0.25)}
             className="p-1.5 rounded-md transition-colors duration-150 hover:opacity-70"
             style={{ color: theme.text, opacity: 0.6 }}
-            title="缩小"
+            title={t('reader.zoomOut')}
           >
             <ZoomOut className="w-4 h-4" strokeWidth={1.5} />
           </button>
@@ -510,7 +587,7 @@ export default function Reader() {
             onClick={() => handleZoom(0.25)}
             className="p-1.5 rounded-md transition-colors duration-150 hover:opacity-70"
             style={{ color: theme.text, opacity: 0.6 }}
-            title="放大"
+            title={t('reader.zoomIn')}
           >
             <ZoomIn className="w-4 h-4" strokeWidth={1.5} />
           </button>
@@ -523,7 +600,7 @@ export default function Reader() {
             }}
             className="p-1.5 rounded-md transition-colors duration-150 hover:opacity-70"
             style={{ color: theme.text, opacity: 0.6 }}
-            title={`主题: ${theme.label}`}
+            title={`${t('reader.theme')}: ${themeLabelMap[themeMode]}`}
           >
             {themeMode === 'light' && <Sun className="w-4 h-4" strokeWidth={1.5} />}
             {themeMode === 'sepia' && <BookOpen className="w-4 h-4" strokeWidth={1.5} />}
@@ -533,7 +610,7 @@ export default function Reader() {
             onClick={toggleFullscreen}
             className="p-1.5 rounded-md transition-colors duration-150 hover:opacity-70"
             style={{ color: theme.text, opacity: 0.6 }}
-            title="全屏"
+            title={isFullscreen ? t('reader.exitFullscreen') : t('reader.fullscreen')}
           >
             {isFullscreen ? <Minimize2 className="w-4 h-4" strokeWidth={1.5} /> : <Maximize2 className="w-4 h-4" strokeWidth={1.5} />}
           </button>
@@ -541,7 +618,7 @@ export default function Reader() {
             onClick={toggleAi}
             className={`p-1.5 rounded-md transition-colors duration-150 ${aiOpen ? '' : 'hover:opacity-70'}`}
             style={{ color: aiOpen ? '#6366f1' : theme.text, opacity: aiOpen ? 1 : 0.6, background: aiOpen ? 'rgba(99,102,241,0.1)' : undefined }}
-            title="AI 助手"
+            title={t('reader.aiAssistant')}
           >
             <Sparkles className="w-4 h-4" strokeWidth={1.5} />
           </button>
@@ -566,7 +643,7 @@ export default function Reader() {
                     opacity: sidebarTab === tab ? 1 : 0.5,
                   }}
                 >
-                  {tab === 'outline' ? '目录' : '书签'}
+                  {tab === 'outline' ? t('reader.tableOfContents') : t('reader.bookmarks')}
                 </button>
               ))}
             </div>
@@ -575,7 +652,7 @@ export default function Reader() {
                 outline.length > 0 ? (
                   <OutlineItems items={outline} onNavigate={navigateOutline} depth={0} theme={themeMode} />
                 ) : (
-                  <p className="text-xs text-center py-8" style={{ color: theme.text, opacity: 0.4 }}>此文档没有目录</p>
+                  <p className="text-xs text-center py-8" style={{ color: theme.text, opacity: 0.4 }}>{t('reader.noSearchResults')}</p>
                 )
               )}
               {sidebarTab === 'bookmarks' && (
@@ -589,12 +666,12 @@ export default function Reader() {
                         style={{ background: themeMode === 'dark' ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)', color: theme.text }}
                       >
                         <Bookmark className="w-3 h-3 inline mr-2" fill="currentColor" style={{ color: '#facc15' }} />
-                        第 {page} 页
+                        {t('common.page')} {page}
                       </button>
                     ))}
                   </div>
                 ) : (
-                  <p className="text-xs text-center py-8" style={{ color: theme.text, opacity: 0.4 }}>暂无书签</p>
+                  <p className="text-xs text-center py-8" style={{ color: theme.text, opacity: 0.4 }}>{t('reader.bookmarks')}</p>
                 )
               )}
             </div>
@@ -616,7 +693,7 @@ export default function Reader() {
             {pdfLoading ? (
               <div className="flex flex-col items-center justify-center h-[70vh]">
                 <div className="w-10 h-10 border-2 rounded-full animate-spin mb-4" style={{ borderColor: themeMode === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.08)', borderTopColor: '#6366f1' }} />
-                <p className="text-sm" style={{ color: theme.text, opacity: 0.5 }}>加载中...</p>
+                <p className="text-sm" style={{ color: theme.text, opacity: 0.5 }}>{t('common.loading')}</p>
               </div>
             ) : !pdfDoc ? (
               <div className="flex flex-col items-center justify-center h-[70vh] max-w-lg text-center animate-fade-in">
@@ -638,7 +715,7 @@ export default function Reader() {
                   </p>
                 )}
                 <p className="text-xs mb-6" style={{ color: theme.text, opacity: 0.3 }}>
-                  此书籍暂无电子文件，可使用 AI 助手了解书籍内容
+                  {t('books.description')}
                 </p>
                 <button
                   onClick={() => { if (!aiOpen) toggleAi(); }}
@@ -646,7 +723,7 @@ export default function Reader() {
                   style={{ color: '#fff', background: '#6366f1' }}
                 >
                   <Sparkles className="w-4 h-4" strokeWidth={1.5} />
-                  AI 问答
+                  {t('reader.aiAssistant')}
                 </button>
               </div>
             ) : (
@@ -671,7 +748,7 @@ export default function Reader() {
             {pageHighlights.length > 0 && (
               <div className="w-full max-w-[720px] mt-6 space-y-3">
                 <h3 className="text-xs font-medium uppercase tracking-wider" style={{ color: theme.text, opacity: 0.4 }}>
-                  本页标注
+                  {t('reader.notes')}
                 </h3>
                 {pageHighlights.map((h: any) => (
                   <div
@@ -756,7 +833,7 @@ export default function Reader() {
                 onClick={() => { setHighlightColor(c.key); handleSelectionAction('highlight'); }}
                 className="w-6 h-6 rounded-md transition-transform duration-150 hover:scale-110"
                 style={{ background: c.bg, border: `1.5px solid ${c.border}` }}
-                title={c.label}
+                title={highlightColorLabelMap[c.key] || c.key}
               />
             ))}
             <div className="w-px h-5 mx-0.5" style={{ background: themeMode === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.08)' }} />
@@ -764,7 +841,7 @@ export default function Reader() {
               onClick={() => handleSelectionAction('explain')}
               className="p-1.5 rounded-lg text-[11px] font-medium transition-colors duration-150 hover:opacity-80"
               style={{ color: theme.text, background: themeMode === 'dark' ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)' }}
-              title="AI 解释"
+              title={t('reader.explain')}
             >
               <Sparkles className="w-3.5 h-3.5" strokeWidth={1.5} />
             </button>
@@ -772,9 +849,17 @@ export default function Reader() {
               onClick={() => handleSelectionAction('translate')}
               className="p-1.5 rounded-lg text-[11px] font-medium transition-colors duration-150 hover:opacity-80"
               style={{ color: theme.text, background: themeMode === 'dark' ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)' }}
-              title="翻译"
+              title={t('reader.translate')}
             >
               <MessageSquare className="w-3.5 h-3.5" strokeWidth={1.5} />
+            </button>
+            <button
+              onClick={handleReadSelectionAloud}
+              className="p-1.5 rounded-lg text-[11px] font-medium transition-colors duration-150 hover:opacity-80"
+              style={{ color: theme.text, background: themeMode === 'dark' ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)' }}
+              title={t('ai.readAloud')}
+            >
+              <Volume2 className="w-3.5 h-3.5" strokeWidth={1.5} />
             </button>
           </div>
         </div>
@@ -801,13 +886,13 @@ export default function Reader() {
               ))}
               <button
                 onClick={() => {
-                  if (id) addHighlight({ bookId: id, text: `第${currentPage}页标注`, color: highlightColor, page: currentPage });
+                  if (id) addHighlight({ bookId: id, text: `${t('common.page')}${currentPage}${t('reader.highlight')}`, color: highlightColor, page: currentPage });
                   setShowHighlighter(false);
                 }}
                 className="text-[11px] font-medium px-2 py-1 rounded-md transition-colors duration-150"
                 style={{ color: '#6366f1', background: 'rgba(99,102,241,0.1)' }}
               >
-                标记
+                {t('reader.highlight')}
               </button>
               <button
                 onClick={() => setShowHighlighter(false)}
@@ -821,7 +906,7 @@ export default function Reader() {
             <div className="flex items-center gap-2 flex-1 max-w-md">
               <input
                 type="text"
-                placeholder="输入笔记..."
+                placeholder={t('reader.askQuestion')}
                 value={noteText}
                 onChange={(e) => setNoteText(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && handleAddNote()}
@@ -834,7 +919,7 @@ export default function Reader() {
                 className="text-[11px] font-medium px-2 py-1 rounded-md transition-colors duration-150"
                 style={{ color: '#6366f1', background: 'rgba(99,102,241,0.1)' }}
               >
-                保存
+                {t('common.save')}
               </button>
               <button
                 onClick={() => setShowNote(false)}
@@ -852,7 +937,7 @@ export default function Reader() {
                 style={{ color: theme.text, opacity: 0.6, background: themeMode === 'dark' ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)' }}
               >
                 <Highlighter className="w-3 h-3" strokeWidth={1.5} />
-                高亮
+                {t('reader.highlight')}
               </button>
               <button
                 onClick={() => setShowNote(true)}
@@ -860,7 +945,7 @@ export default function Reader() {
                 style={{ color: theme.text, opacity: 0.6, background: themeMode === 'dark' ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)' }}
               >
                 <Pencil className="w-3 h-3" strokeWidth={1.5} />
-                笔记
+                {t('reader.notes')}
               </button>
               <button
                 onClick={async () => {
@@ -883,7 +968,7 @@ export default function Reader() {
                 }}
               >
                 <Heart className="w-3 h-3" strokeWidth={1.5} fill={isFavorite ? 'currentColor' : 'none'} />
-                收藏
+                {t('nav.favorites')}
               </button>
             </>
           )}
@@ -929,7 +1014,7 @@ export default function Reader() {
                   className="text-[11px] font-medium px-1.5 py-0.5 rounded"
                   style={{ color: '#6366f1', background: 'rgba(99,102,241,0.1)' }}
                 >
-                  跳转
+                  {t('common.submit')}
                 </button>
               </div>
             )}
@@ -963,6 +1048,33 @@ export default function Reader() {
           </span>
         </div>
       </footer>
+
+      {/* Quiz prompt modal */}
+      {quizPrompt && (
+        <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm" onClick={() => setQuizPrompt(false)}>
+          <div className="bg-surface rounded-2xl shadow-3 p-8 max-w-sm mx-4 text-center animate-[scale-in_0.25s_ease-out] z-10" onClick={(e) => e.stopPropagation()}>
+            <div className="text-5xl mb-4">🎉</div>
+            <h2 className="text-xl font-extrabold text-text-primary mb-2">{t('quiz.title')}</h2>
+            <p className="text-sm text-text-secondary leading-relaxed mb-6">
+              {t('home.achievementsHint', 'You finished this book! Test your understanding with a quick quiz.')}
+            </p>
+            <div className="flex items-center gap-3 justify-center">
+              <button
+                onClick={() => { setQuizPrompt(false); navigate(`/quiz/${id}`); }}
+                className="px-5 py-2.5 bg-accent text-white text-sm font-semibold rounded-xl hover:bg-accent-hover transition-colors shadow-sm"
+              >
+                {t('quiz.startQuiz')}
+              </button>
+              <button
+                onClick={() => setQuizPrompt(false)}
+                className="px-5 py-2.5 text-sm font-medium text-text-tertiary hover:text-text-primary transition-colors"
+              >
+                {t('common.cancel')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

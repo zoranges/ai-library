@@ -86,22 +86,29 @@ router.post('/progress', verifyToken, async (req: Request, res: Response): Promi
     const isCompleted = currentPage >= totalPages ? 1 : 0;
     const now = new Date().toISOString();
 
-    const existing = await queryOne('SELECT id FROM reading_progress WHERE userId = ? AND bookId = ?', [userId, bookId]);
+    const existing = await queryOne(
+      'SELECT id, isCompleted FROM reading_progress WHERE userId = ? AND bookId = ?',
+      [userId, bookId]
+    );
+
+    const wasAlreadyCompleted = existing?.isCompleted === 1;
+    const completedAt = isCompleted ? now : null;
 
     if (existing) {
       await run(
-        'UPDATE reading_progress SET currentPage = ?, totalPages = ?, percentage = ?, lastReadAt = ?, isCompleted = ?, lastPosition = ? WHERE userId = ? AND bookId = ?',
-        [currentPage, totalPages, percentage, now, isCompleted, lastPosition || null, userId, bookId]
+        'UPDATE reading_progress SET currentPage = ?, totalPages = ?, percentage = ?, lastReadAt = ?, isCompleted = ?, completedAt = ?, lastPosition = ? WHERE userId = ? AND bookId = ?',
+        [currentPage, totalPages, percentage, now, isCompleted, completedAt, lastPosition || null, userId, bookId]
       );
     } else {
       await run(
-        'INSERT INTO reading_progress (id, userId, bookId, currentPage, totalPages, percentage, lastReadAt, isCompleted, startedAt, lastPosition) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-        [uuidv4(), userId, bookId, currentPage, totalPages, percentage, now, isCompleted, now, lastPosition || null]
+        'INSERT INTO reading_progress (id, userId, bookId, currentPage, totalPages, percentage, lastReadAt, isCompleted, completedAt, startedAt, lastPosition) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+        [uuidv4(), userId, bookId, currentPage, totalPages, percentage, now, isCompleted, completedAt, now, lastPosition || null]
       );
       await run('UPDATE books SET readCount = readCount + 1 WHERE id = ?', [bookId]);
     }
 
-    if (isCompleted) {
+    // Only award completion bonus if newly completed (wasn't already completed before)
+    if (isCompleted && !wasAlreadyCompleted) {
       await run('UPDATE users SET points = points + 10 WHERE id = ?', [userId]);
       await run(
         'INSERT INTO points (id, userId, points, type, description, referenceId) VALUES (?, ?, ?, ?, ?, ?)',
@@ -109,8 +116,28 @@ router.post('/progress', verifyToken, async (req: Request, res: Response): Promi
       );
     }
 
-    const updated = await queryOne('SELECT * FROM reading_progress WHERE userId = ? AND bookId = ?', [userId, bookId]);
-    res.json({ success: true, data: updated });
+    // Check if a quiz already exists for this user+book
+    let quizAvailable = false;
+    if (isCompleted) {
+      const existingQuiz = await queryOne(
+        'SELECT id FROM quiz_results WHERE userId = ? AND bookId = ?',
+        [userId, bookId]
+      );
+      quizAvailable = !existingQuiz;
+    }
+
+    const updated = await queryOne(
+      'SELECT * FROM reading_progress WHERE userId = ? AND bookId = ?',
+      [userId, bookId]
+    );
+
+    res.json({
+      success: true,
+      data: {
+        ...updated,
+        quizAvailable,
+      },
+    });
   } catch (error) {
     res.status(500).json({ success: false, error: 'Failed to update reading progress' });
   }
@@ -308,6 +335,129 @@ router.get('/stats', verifyToken, async (req: Request, res: Response): Promise<v
     });
   } catch (error) {
     res.status(500).json({ success: false, error: 'Failed to fetch reading stats' });
+  }
+});
+
+// Personal reading report with preferences analysis
+router.get('/report', verifyToken, async (req: Request, res: Response): Promise<void> => {
+  try {
+    const userId = req.user!.userId;
+
+    const user = await queryOne('SELECT username, email, points, level FROM users WHERE id = ?', [userId]);
+    const completedBooks = await queryOne('SELECT COUNT(*) as count FROM reading_progress WHERE userId = ? AND isCompleted = 1', [userId]);
+    const totalBooks = await queryOne('SELECT COUNT(*) as count FROM reading_progress WHERE userId = ?', [userId]);
+    const totalMinutes = await queryOne('SELECT COALESCE(SUM(duration), 0) as total FROM reading_sessions WHERE userId = ?', [userId]);
+    const totalPages = await queryOne('SELECT COALESCE(SUM(currentPage), 0) as total FROM reading_progress WHERE userId = ?', [userId]);
+    const quizStats = await queryOne('SELECT COUNT(*) as totalQuizzes, COALESCE(AVG(score), 0) as avgScore FROM quiz_results WHERE userId = ?', [userId]);
+    const highlights = await queryOne('SELECT COUNT(*) as count FROM highlights WHERE userId = ?', [userId]);
+    const notes = await queryOne('SELECT COUNT(*) as count FROM notes WHERE userId = ?', [userId]);
+    const achievements = await queryOne('SELECT COUNT(*) as count FROM user_achievements WHERE userId = ?', [userId]);
+
+    // Language distribution
+    const languageDist = await queryAll(
+      `SELECT b.language, COUNT(rp.id) as count
+       FROM reading_progress rp
+       JOIN books b ON rp.bookId = b.id
+       WHERE rp.userId = ?
+       GROUP BY b.language
+       ORDER BY count DESC`,
+      [userId]
+    );
+
+    // Category preferences
+    const categoryPref = await queryAll(
+      `SELECT c.name, c.icon, c.color, COUNT(rp.id) as count, COALESCE(SUM(rp.currentPage), 0) as totalPages
+       FROM reading_progress rp
+       JOIN books b ON rp.bookId = b.id
+       JOIN book_categories c ON b.categoryId = c.id
+       WHERE rp.userId = ?
+       GROUP BY c.id, c.name, c.icon, c.color
+       ORDER BY count DESC
+       LIMIT 6`,
+      [userId]
+    );
+
+    // Difficulty preference
+    const difficultyDist = await queryAll(
+      `SELECT b.difficulty, COUNT(rp.id) as count
+       FROM reading_progress rp
+       JOIN books b ON rp.bookId = b.id
+       WHERE rp.userId = ?
+       GROUP BY b.difficulty
+       ORDER BY count DESC`,
+      [userId]
+    );
+
+    // Monthly reading trend (last 12 months)
+    const monthlyTrend: { month: string; books: number; minutes: number }[] = [];
+    for (let i = 11; i >= 0; i--) {
+      const date = new Date();
+      date.setMonth(date.getMonth() - i);
+      const monthStr = date.toISOString().substring(0, 7);
+      const books = (await queryOne(
+        "SELECT COUNT(*) as count FROM reading_progress WHERE userId = ? AND isCompleted = 1 AND DATE_FORMAT(completedAt, '%Y-%m') = ?",
+        [userId, monthStr]
+      ))?.count || 0;
+      const minutes = (await queryOne(
+        "SELECT COALESCE(SUM(duration), 0) as total FROM reading_sessions WHERE userId = ? AND DATE_FORMAT(startedAt, '%Y-%m') = ?",
+        [userId, monthStr]
+      ))?.total || 0;
+      monthlyTrend.push({ month: monthStr, books: books as number, minutes: Math.round((minutes as number) / 60) });
+    }
+
+    // Top authors
+    const topAuthors = await queryAll(
+      `SELECT b.author, COUNT(rp.id) as count
+       FROM reading_progress rp
+       JOIN books b ON rp.bookId = b.id
+       WHERE rp.userId = ?
+       GROUP BY b.author
+       ORDER BY count DESC
+       LIMIT 5`,
+      [userId]
+    );
+
+    // Determine reading preference profile
+    let preferenceProfile = 'balanced';
+    if (categoryPref.length > 0) {
+      const topCategory = categoryPref[0];
+      const secondCategory = categoryPref[1];
+      if (topCategory && (!secondCategory || (Number(topCategory.count) > (Number(secondCategory.count) * 2)))) {
+        preferenceProfile = 'specialized';
+      }
+    }
+
+    res.json({
+      success: true,
+      data: {
+        user: {
+          username: user?.username,
+          email: user?.email,
+          points: user?.points,
+          level: user?.level,
+        },
+        overview: {
+          totalBooks: totalBooks?.count || 0,
+          completedBooks: completedBooks?.count || 0,
+          completionRate: totalBooks?.count ? Math.round((Number(completedBooks?.count) / Number(totalBooks?.count)) * 100) : 0,
+          totalReadingMinutes: Math.round(((totalMinutes?.total as number) || 0) / 60),
+          totalPages: totalPages?.total || 0,
+          totalQuizzes: quizStats?.totalQuizzes || 0,
+          avgQuizScore: Math.round((quizStats?.avgScore as number) || 0),
+          totalHighlights: highlights?.count || 0,
+          totalNotes: notes?.count || 0,
+          totalAchievements: achievements?.count || 0,
+        },
+        languageDistribution: languageDist,
+        categoryPreferences: categoryPref,
+        difficultyDistribution: difficultyDist,
+        topAuthors,
+        monthlyTrend,
+        preferenceProfile,
+      },
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, error: 'Failed to generate reading report' });
   }
 });
 

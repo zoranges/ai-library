@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { BookOpen, Heart, Play, Star, Calendar, Building2, Hash, ChevronLeft } from 'lucide-react';
 import Button from '@/components/ui/Button';
 import Badge from '@/components/ui/Badge';
@@ -15,23 +16,8 @@ const LANG_DOT: Record<string, string> = {
   ta: 'bg-amber-400',
 };
 
-const LANG_LABEL: Record<string, string> = {
-  en: 'English',
-  zh: 'Chinese',
-  ms: 'Malay',
-  ta: 'Tamil',
-};
-
-function getDifficultyLabel(d: string) {
-  const map: Record<string, { label: string; variant: 'success' | 'warning' | 'error' }> = {
-    beginner: { label: 'Beginner', variant: 'success' },
-    intermediate: { label: 'Intermediate', variant: 'warning' },
-    advanced: { label: 'Advanced', variant: 'error' },
-  };
-  return map[d] || { label: d, variant: 'default' as const };
-}
-
 export default function BookDetail() {
+  const { t } = useTranslation();
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { currentBook: book, books, fetchBookById, fetchBooks } = useBookStore();
@@ -73,6 +59,23 @@ export default function BookDetail() {
     }
   }
 
+  const langLabelMap: Record<string, string> = {
+    en: t('lang.en'),
+    zh: t('lang.zh'),
+    ms: t('lang.ms'),
+    ta: t('lang.ta'),
+  };
+
+  const difficultyMap: Record<string, { label: string; variant: 'success' | 'warning' | 'error' }> = {
+    beginner: { label: t('books.beginner'), variant: 'success' },
+    intermediate: { label: t('books.intermediate'), variant: 'warning' },
+    advanced: { label: t('books.advanced'), variant: 'error' },
+  };
+
+  function getDifficultyLabel(d: string) {
+    return difficultyMap[d] || { label: d, variant: 'default' as const };
+  }
+
   if (!book) {
     return (
       <div className="flex items-center justify-center min-h-[50vh] px-4">
@@ -88,7 +91,7 @@ export default function BookDetail() {
   return (
     <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
       <button onClick={() => navigate(-1)} className="flex items-center gap-1 text-sm text-text-tertiary hover:text-accent mb-6 transition-colors">
-        <ChevronLeft className="w-4 h-4" strokeWidth={1.5} /> Back
+        <ChevronLeft className="w-4 h-4" strokeWidth={1.5} /> {t('common.back')}
       </button>
 
       <div className="flex flex-col lg:flex-row gap-8 animate-fade-in">
@@ -105,12 +108,12 @@ export default function BookDetail() {
             <Badge variant="accent" size="sm">{book.fileType === 'epub' ? 'EPUB' : 'PDF'}</Badge>
             <Badge variant="outline" size="sm">
               <span className={`w-1.5 h-1.5 rounded-full ${LANG_DOT[book.language] || 'bg-gray-400'} mr-1`} />
-              {LANG_LABEL[book.language] || book.language}
+              {langLabelMap[book.language] || book.language}
             </Badge>
           </div>
 
           <h1 className="text-2xl font-extrabold text-text-primary font-heading leading-tight">{book.title}</h1>
-          <p className="text-sm text-text-secondary mt-2">by {book.author}</p>
+          <p className="text-sm text-text-secondary mt-2">{book.author}</p>
 
           <div className="flex items-center gap-4 mt-3 text-xs text-text-tertiary">
             {book.isbn && <span className="flex items-center gap-1"><Hash className="w-3.5 h-3.5" strokeWidth={1.5} />{book.isbn}</span>}
@@ -118,20 +121,24 @@ export default function BookDetail() {
             {book.publishDate && <span className="flex items-center gap-1"><Calendar className="w-3.5 h-3.5" strokeWidth={1.5} />{book.publishDate}</span>}
           </div>
 
+          {book.copyright && (
+            <div className="mt-3 px-3 py-2 bg-warning/5 border border-warning/15 rounded-lg text-[11px] text-warning/80 leading-relaxed">{book.copyright}</div>
+          )}
+
           <div className="flex items-center gap-4 mt-4">
             <div className="flex items-center gap-1">
               <Star className="w-3.5 h-3.5 text-warning fill-warning" strokeWidth={1.5} />
               <span className="text-[13px] font-medium text-text-primary font-mono">{book.rating.toFixed(1)}</span>
               <span className="text-[11px] text-text-tertiary">({book.ratingCount})</span>
             </div>
-            <span className="text-[11px] text-text-tertiary font-mono">{book.readCount} reads</span>
-            <span className="text-[11px] text-text-tertiary font-mono">{book.pageCount} pages</span>
+            <span className="text-[11px] text-text-tertiary font-mono">{book.readCount} {t('books.readCount')}</span>
+            <span className="text-[11px] text-text-tertiary font-mono">{book.pageCount} {t('books.pages')}</span>
           </div>
 
           {progressPct > 0 && (
             <div className="mt-5">
               <div className="flex items-center justify-between text-[11px] mb-1.5">
-                <span className="text-text-secondary">Reading Progress</span>
+                <span className="text-text-secondary">{t('reader.readingProgress')}</span>
                 <span className="text-accent font-medium font-mono">{progressPct}%</span>
               </div>
               <div className="w-full h-1 bg-bg-tertiary rounded-full overflow-hidden">
@@ -143,7 +150,7 @@ export default function BookDetail() {
           <div className="flex flex-wrap gap-2.5 mt-6">
             <Link to={`/read/${book.id}`}>
               <Button size="lg" icon={<Play className="w-4 h-4" strokeWidth={1.5} />} className="h-11 rounded-lg">
-                {progressPct > 0 ? 'Continue Reading' : 'Start Reading'}
+                {progressPct > 0 ? t('home.continueReading') : t('books.startReading')}
               </Button>
             </Link>
             <Button
@@ -154,7 +161,7 @@ export default function BookDetail() {
               loading={favLoading}
               className="h-11 rounded-lg"
             >
-              {isFavorite ? 'Favorited' : 'Add to Favorites'}
+              {isFavorite ? t('books.removeFromFavorites') : t('books.addToFavorites')}
             </Button>
           </div>
         </div>
@@ -162,7 +169,7 @@ export default function BookDetail() {
 
       {book.description && (
         <div className="mt-8 bg-bg-primary rounded-xl border border-border p-5">
-          <h3 className="text-sm font-bold text-text-primary mb-2">About This Book</h3>
+          <h3 className="text-sm font-bold text-text-primary mb-2">{t('books.description')}</h3>
           <p className="text-sm text-text-secondary leading-relaxed whitespace-pre-line max-w-2xl">{book.description}</p>
         </div>
       )}
@@ -177,7 +184,7 @@ export default function BookDetail() {
 
       {relatedBooks.length > 0 && (
         <section className="mt-12">
-          <h2 className="text-base font-extrabold text-text-primary font-heading mb-4">Related Books</h2>
+          <h2 className="text-base font-extrabold text-text-primary font-heading mb-4">{t('books.relatedBooks')}</h2>
           <div className="flex gap-3 overflow-x-auto pb-2">
             {relatedBooks.map((rb) => (
               <Link key={rb.id} to={`/books/${rb.id}`} className="shrink-0 w-36 group">

@@ -5,9 +5,15 @@ export interface User {
   avatar?: string;
   schoolId: string;
   grade?: string;
-  role: 'student' | 'admin' | 'super_admin' | 'school_admin';
+  role: 'student' | 'teacher' | 'admin' | 'super_admin';
   points: number;
   level: number;
+  preferredLanguage?: string;
+  phone?: string;
+  guardianName?: string;
+  guardianPhone?: string;
+  address?: string;
+  isDeregistered?: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -16,6 +22,9 @@ export interface School {
   id: string;
   name: string;
   address?: string;
+  district?: string;
+  state?: string;
+  country?: string;
   contactPhone?: string;
   contactEmail?: string;
   studentCount: number;
@@ -53,8 +62,10 @@ export interface Book {
   readCount: number;
   favoriteCount: number;
   tags: string[];
+  copyright?: string;
   fileUrl?: string;
   fileType?: string;
+  textContent?: string;
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
@@ -71,6 +82,7 @@ export interface ReadingProgress {
   lastReadAt: string;
   lastPosition?: string;
   isCompleted: boolean;
+  completedAt?: string;
   startedAt: string;
 }
 
@@ -230,6 +242,23 @@ export interface ReadingStats {
   categoryDistribution: { category: string; count: number }[];
 }
 
+export interface ReadingGrowth {
+  months: string[];
+  booksPerMonth: number[];
+  minutesPerMonth: number[];
+  pointsPerMonth: number[];
+  quizzesPerMonth: number[];
+  milestones: GrowthMilestone[];
+}
+
+export interface GrowthMilestone {
+  date: string;
+  type: 'book_completed' | 'quiz_mastered' | 'streak_reached' | 'points_earned' | 'level_up';
+  title: string;
+  description: string;
+  icon: string;
+}
+
 export interface DashboardData {
   totalStudents: number;
   totalBooks: number;
@@ -262,6 +291,30 @@ export interface ChatMessage {
     page?: number;
     type?: 'explain' | 'define' | 'translate' | 'chat';
   };
+}
+
+export interface AIConfig {
+  id: string;
+  configKey: string;
+  configValue: string;
+  description?: string;
+  updatedAt?: string;
+  updatedBy?: string;
+}
+
+export interface PasswordResetToken {
+  id: string;
+  userId: string;
+  token: string;
+  expiresAt: string;
+  used: boolean;
+  createdAt: string;
+}
+
+export interface DocumentSearchResult {
+  page: number;
+  text: string;
+  context: string;
 }
 
 export interface PaginationParams {
@@ -302,6 +355,8 @@ export interface RegisterRequest {
   password: string;
   schoolId: string;
   grade?: string;
+  icNumber?: string;
+  preferredLanguage?: string;
 }
 
 export interface BookFilter {
@@ -314,4 +369,4 @@ export interface BookFilter {
 }
 
 export type ThemeMode = 'light' | 'dark' | 'system';
-export type Language = 'zh' | 'en';
+export type Language = 'en' | 'ms' | 'zh' | 'ta';

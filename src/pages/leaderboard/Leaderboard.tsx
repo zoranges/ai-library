@@ -1,28 +1,11 @@
 import { useEffect, useState } from 'react';
 import { Star, BookOpen, Clock, Crown } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import Tabs from '@/components/ui/Tabs';
 import Select from '@/components/ui/Select';
 import { leaderboardApi } from '@/utils/api';
 import { useAuthStore } from '@/stores/authStore';
 import type { LeaderboardEntry } from '@/types';
-
-const PERIOD_TABS = [
-  { key: 'month', label: 'Monthly' },
-  { key: 'year', label: 'Yearly' },
-];
-
-const METRIC_TABS = [
-  { key: 'points', label: 'Points', icon: <Star className="w-3.5 h-3.5" strokeWidth={1.5} /> },
-  { key: 'books', label: 'Books', icon: <BookOpen className="w-3.5 h-3.5" strokeWidth={1.5} /> },
-  { key: 'time', label: 'Time', icon: <Clock className="w-3.5 h-3.5" strokeWidth={1.5} /> },
-];
-
-const REGION_OPTIONS = [
-  { value: 'school', label: 'School' },
-  { value: 'district', label: 'District' },
-  { value: 'state', label: 'State' },
-  { value: 'country', label: 'Country' },
-];
 
 function getInitials(name: string) {
   return name.slice(0, 2).toUpperCase();
@@ -30,11 +13,12 @@ function getInitials(name: string) {
 
 function getScoreValue(entry: LeaderboardEntry, metric: string) {
   if (metric === 'books') return entry.booksRead;
-  if (metric === 'time') return `${Math.round(entry.points / 10)}m`;
+  if (metric === 'readingTime') return `${Math.round((entry as any).totalReadingMinutes || entry.points / 10)}m`;
   return entry.points;
 }
 
 export default function Leaderboard() {
+  const { t } = useTranslation();
   const { user } = useAuthStore();
   const [period, setPeriod] = useState('month');
   const [region, setRegion] = useState('school');
@@ -42,11 +26,34 @@ export default function Leaderboard() {
   const [entries, setEntries] = useState<LeaderboardEntry[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
+  const PERIOD_TABS = [
+    { key: 'month', label: t('leaderboard.month') },
+    { key: 'year', label: t('leaderboard.year') },
+  ];
+
+  const METRIC_TABS = [
+    { key: 'points', label: t('leaderboard.points'), icon: <Star className="w-3.5 h-3.5" strokeWidth={1.5} /> },
+    { key: 'books', label: t('leaderboard.byBooks'), icon: <BookOpen className="w-3.5 h-3.5" strokeWidth={1.5} /> },
+    { key: 'readingTime', label: t('profile.totalMinutes'), icon: <Clock className="w-3.5 h-3.5" strokeWidth={1.5} /> },
+  ];
+
+  const REGION_OPTIONS = [
+    { value: 'school', label: t('leaderboard.schoolRegion') },
+    { value: 'district', label: t('leaderboard.districtRegion') },
+    { value: 'state', label: t('leaderboard.stateRegion') },
+    { value: 'country', label: t('leaderboard.countryRegion') },
+  ];
+
   useEffect(() => {
     async function fetch() {
       setIsLoading(true);
       try {
-        const res = await leaderboardApi.getLeaderboard({ period: period as any, pageSize: 50 });
+        const res = await leaderboardApi.getLeaderboard({
+          period: period as any,
+          type: metric,
+          region: region,
+          pageSize: 50,
+        });
         const rawData = res.data;
         if (Array.isArray(rawData)) {
           setEntries(rawData as any);
@@ -72,7 +79,7 @@ export default function Leaderboard() {
   return (
     <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
       <div className="mb-6">
-        <h1 className="text-xl font-extrabold text-text-primary font-heading">Leaderboard</h1>
+        <h1 className="text-xl font-extrabold text-text-primary font-heading">{t('leaderboard.title')}</h1>
       </div>
 
       <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 mb-6">
@@ -124,7 +131,7 @@ export default function Leaderboard() {
                     </div>
                     <div className={`mt-3 text-center ${isFirst ? 'mt-4' : 'mt-2'}`}>
                       <p className={`font-bold text-text-primary ${isFirst ? 'text-sm' : 'text-xs'}`}>
-                        {entry.user?.username || 'User'}
+                        {entry.user?.username || t('leaderboard.student')}
                       </p>
                       <p className="text-[11px] text-text-tertiary mt-0.5">{entry.school?.name || ''}</p>
                       <p className={`font-bold mt-1 text-sm ${rank === 1 ? 'text-accent' : 'text-text-secondary'}`}>
@@ -155,7 +162,7 @@ export default function Leaderboard() {
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className={`text-sm font-medium truncate ${isCurrentUser ? 'text-accent' : 'text-text-primary'}`}>
-                      {isCurrentUser ? 'Me' : entry.user?.username || 'User'}
+                      {isCurrentUser ? t('leaderboard.student') : entry.user?.username || t('leaderboard.student')}
                     </p>
                     <p className="text-[11px] text-text-tertiary">{entry.school?.name || ''}</p>
                   </div>
@@ -177,7 +184,7 @@ export default function Leaderboard() {
                   {getInitials(user?.username || 'U')}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-accent">Me</p>
+                  <p className="text-sm font-medium text-accent">{t('leaderboard.student')}</p>
                   <p className="text-[11px] text-text-tertiary">{currentUserEntry.school?.name || ''}</p>
                 </div>
                 <span className="text-sm font-mono font-medium text-accent tabular-nums">

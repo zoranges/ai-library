@@ -25,9 +25,9 @@ router.get('/', verifyToken, async (req: Request, res: Response): Promise<void> 
     const params: unknown[] = [];
 
     if (search) {
-      whereClause += ' AND (b.title LIKE ? OR b.author LIKE ? OR b.tags LIKE ?)';
+      whereClause += ' AND (b.title LIKE ? OR b.author LIKE ? OR b.tags LIKE ? OR b.isbn LIKE ?)';
       const searchTerm = `%${search}%`;
-      params.push(searchTerm, searchTerm, searchTerm);
+      params.push(searchTerm, searchTerm, searchTerm, searchTerm);
     }
     if (categoryId) {
       whereClause += ' AND b.categoryId = ?';

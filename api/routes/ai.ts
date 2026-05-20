@@ -7,7 +7,16 @@ const router = Router();
 
 const AI_API_KEY = process.env.ALIBABA_API_KEY || '';
 const AI_BASE_URL = 'https://dashscope.aliyuncs.com/compatible-mode/v1';
-const AI_MODEL = 'qwen-plus';
+
+async function getAIModel(): Promise<string> {
+  try {
+    const config = await queryOne("SELECT model FROM ai_config WHERE `key` = 'default_model'");
+    if (config?.model) return config.model as string;
+  } catch {
+    // fallback to default
+  }
+  return 'qwen-plus';
+}
 
 const SYSTEM_PROMPT = `你是一个专业的AI阅读助手，帮助用户理解书籍内容。你的能力包括：
 1. 解释书中的段落、概念和难懂内容
@@ -19,6 +28,8 @@ const SYSTEM_PROMPT = `你是一个专业的AI阅读助手，帮助用户理解�
 请用清晰、准确、友好的方式回答。如果涉及书籍内容，请结合上下文给出深入分析。`;
 
 async function callAI(messages: Array<{ role: string; content: string }>, options?: { temperature?: number; max_tokens?: number }): Promise<string> {
+  const model = await getAIModel();
+
   const response = await fetch(`${AI_BASE_URL}/chat/completions`, {
     method: 'POST',
     headers: {
@@ -26,7 +37,7 @@ async function callAI(messages: Array<{ role: string; content: string }>, option
       'Authorization': `Bearer ${AI_API_KEY}`,
     },
     body: JSON.stringify({
-      model: AI_MODEL,
+      model,
       messages,
       temperature: options?.temperature ?? 0.7,
       max_tokens: options?.max_tokens ?? 2048,
@@ -278,26 +289,48 @@ router.post('/quiz/generate', verifyToken, async (req: Request, res: Response): 
 
 router.post('/quiz/submit', verifyToken, async (req: Request, res: Response): Promise<void> => {
   try {
-    const { bookId, answers, timeSpent } = req.body;
+    const { bookId, answers, questions, timeSpent } = req.body;
 
-    if (!bookId || !answers || !Array.isArray(answers)) {
-      res.status(400).json({ success: false, error: 'bookId and answers array are required' });
+    if (!bookId || !answers || !Array.isArray(answers) || !questions || !Array.isArray(questions)) {
+      res.status(400).json({ success: false, error: 'bookId, answers array, and questions array are required' });
       return;
     }
 
-    const correctAnswers = answers.filter((a: number) => a === 0 || a === 1 || a === 2).length;
-    const totalQuestions = answers.length;
-    const score = totalQuestions > 0 ? Math.round((correctAnswers / totalQuestions) * 100) : 0;
-
     const userId = req.user!.userId;
+
+    // Deduplication: check if quiz already completed for this user+book
+    const existingResult = await queryOne(
+      'SELECT id FROM quiz_results WHERE userId = ? AND bookId = ?',
+      [userId, bookId]
+    );
+    if (existingResult) {
+      res.status(400).json({ success: false, error: 'Quiz already completed for this book' });
+      return;
+    }
+
+    const totalQuestions = questions.length;
+    const correctCount = answers.filter(
+      (a: number, i: number) => a === questions[i].correctAnswer
+    ).length;
+    const score = totalQuestions > 0 ? Math.round((correctCount / totalQuestions) * 100) : 0;
+
+    // Points: 5 questions with >= 3 correct = 1 point; non-5 handled proportionally (>= 60% = 1 point)
+    let pointsEarned = 0;
+    if (totalQuestions === 5 && correctCount >= 3) {
+      pointsEarned = 1;
+    } else if (totalQuestions > 0 && totalQuestions !== 5) {
+      if (correctCount / totalQuestions >= 0.6) {
+        pointsEarned = 1;
+      }
+    }
+
     const resultId = uuidv4();
 
     await run(
       'INSERT INTO quiz_results (id, userId, bookId, score, totalQuestions, correctAnswers, timeSpent, answers) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-      [resultId, userId, bookId, score, totalQuestions, correctAnswers, timeSpent || 0, JSON.stringify(answers)]
+      [resultId, userId, bookId, score, totalQuestions, correctCount, timeSpent || 0, JSON.stringify(answers)]
     );
 
-    const pointsEarned = Math.floor(score / 10) * 2;
     if (pointsEarned > 0) {
       await run('UPDATE users SET points = points + ? WHERE id = ?', [pointsEarned, userId]);
       await run(
@@ -314,9 +347,10 @@ router.post('/quiz/submit', verifyToken, async (req: Request, res: Response): Pr
         bookId,
         score,
         totalQuestions,
-        correctAnswers,
+        correctAnswers: correctCount,
         timeSpent: timeSpent || 0,
         answers,
+        pointsEarned,
         completedAt: new Date().toISOString(),
       },
     });
@@ -406,6 +440,51 @@ router.post('/search', verifyToken, async (req: Request, res: Response): Promise
     res.json({ success: true, data: formatted });
   } catch (error) {
     res.status(500).json({ success: false, error: 'AI search failed' });
+  }
+});
+
+router.post('/search-document', verifyToken, async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { bookId, query } = req.body;
+    if (!bookId || !query) {
+      res.status(400).json({ success: false, error: 'bookId and query are required' });
+      return;
+    }
+
+    const book = await queryOne('SELECT title, textContent FROM books WHERE id = ?', [bookId]);
+    if (!book || !book.textContent) {
+      res.json({ success: true, data: { results: [] } });
+      return;
+    }
+
+    const textContent = book.textContent as string;
+    const pages = textContent.split(/\f/);
+    const results: Array<{ page: number; text: string; context: string }> = [];
+    const searchLower = query.toLowerCase();
+
+    for (let i = 0; i < pages.length; i++) {
+      const pageText = pages[i];
+      if (!pageText) continue;
+      const lowerPage = pageText.toLowerCase();
+      let idx = 0;
+      while ((idx = lowerPage.indexOf(searchLower, idx)) !== -1) {
+        const start = Math.max(0, idx - 40);
+        const end = Math.min(pageText.length, idx + query.length + 40);
+        const context = (start > 0 ? '...' : '') + pageText.substring(start, end).trim() + (end < pageText.length ? '...' : '');
+        results.push({
+          page: i + 1,
+          text: pageText.substring(idx, idx + query.length),
+          context,
+        });
+        idx += query.length;
+        if (results.length >= 50) break;
+      }
+      if (results.length >= 50) break;
+    }
+
+    res.json({ success: true, data: { results } });
+  } catch (error) {
+    res.status(500).json({ success: false, error: 'Document search failed' });
   }
 });
 
