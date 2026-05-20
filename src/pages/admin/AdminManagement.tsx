@@ -11,13 +11,6 @@ import { useAuthStore } from '@/stores/authStore';
 import { cn } from '@/lib/utils';
 import { adminApi } from '@/utils/api';
 
-const mockAdmins = [
-  { id: '1', name: 'Ahmad bin Ali', email: 'ahmad@library.my', school: 'SMK Tunku Abdul Rahman', role: 'admin', isActive: true },
-  { id: '2', name: 'Siti binti Hassan', email: 'siti@library.my', school: 'SK Bukit Damansara', role: 'admin', isActive: true },
-  { id: '3', name: 'System Admin', email: 'sysadmin@library.my', school: '-', role: 'super_admin', isActive: true },
-  { id: '4', name: 'Rajesh Kumar', email: 'rajesh@library.my', school: 'SMK Sri Hartamas', role: 'admin', isActive: false },
-  { id: '5', name: 'Lim Wei Ming', email: 'lim@library.my', school: 'SK Bangsar', role: 'admin', isActive: true },
-];
 
 function generatePassword() {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789';
@@ -28,15 +21,17 @@ export default function AdminManagement() {
   const { t } = useTranslation();
   const { user } = useAuthStore();
   const isSuper = user?.role === 'super_admin';
-  const [admins, setAdmins] = useState(mockAdmins);
+  const [admins, setAdmins] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
   const [form, setForm] = useState({ name: '', email: '', password: '', role: 'admin', schoolId: '' });
 
   useEffect(() => {
+    setLoading(true);
     adminApi.getAdmins().then((res) => {
       if (res.data) setAdmins(res.data);
-    }).catch(() => {});
+    }).catch(() => {}).finally(() => setLoading(false));
   }, []);
 
   const schoolOptions = [
@@ -63,19 +58,20 @@ export default function AdminManagement() {
     const a = admins.find((x) => x.id === id);
     if (a) {
       setEditId(id);
-      setForm({ name: a.name, email: a.email, password: '', role: a.role, schoolId: '' });
+      setForm({ name: a.username || a.user?.username || '', email: a.email || a.user?.email || '', password: '', role: a.role, schoolId: a.schoolId || '' });
       setModalOpen(true);
     }
   }
 
   async function handleSave() {
     if (editId) {
-      await adminApi.updateAdmin(editId, form).catch(() => {});
-      setAdmins((prev) => prev.map((a) => a.id === editId ? { ...a, name: form.name, email: form.email, role: form.role as 'admin' | 'super_admin' } : a));
+      await adminApi.updateAdmin(editId, { schoolId: form.schoolId || undefined }).catch(() => {});
+      setAdmins((prev) => prev.map((a) => a.id === editId ? { ...a, username: form.name, email: form.email, role: form.role } : a));
     } else {
-      const res = await adminApi.createAdmin(form).catch(() => null);
-      if (res?.data) setAdmins((prev) => [...prev, res.data]);
-      else setAdmins((prev) => [...prev, { id: String(Date.now()), name: form.name, email: form.email, school: form.schoolId ? schoolOptions.find((o) => o.value === form.schoolId)?.label || '-' : '-', role: form.role as 'admin' | 'super_admin', isActive: true }]);
+      const res = await adminApi.createAdmin({ username: form.name, email: form.email, password: form.password, schoolId: form.schoolId }).catch(() => null);
+      if (res?.data) {
+        setAdmins((prev) => [...prev, res.data]);
+      }
     }
     setModalOpen(false);
   }
@@ -94,6 +90,13 @@ export default function AdminManagement() {
 
       <Card padding="none">
         <div className="overflow-x-auto">
+          {loading ? (
+            <div className="flex items-center justify-center py-16">
+              <div className="w-6 h-6 border-2 rounded-full animate-spin border-accent/20 border-t-accent" />
+            </div>
+          ) : admins.length === 0 ? (
+            <div className="text-center py-16 text-text-tertiary">{t('common.noData')}</div>
+          ) : (
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-border bg-surface-raised/50">
@@ -108,9 +111,9 @@ export default function AdminManagement() {
             <tbody>
               {admins.map((admin) => (
                 <tr key={admin.id} className="border-b border-border hover:bg-surface-raised/30 transition-colors">
-                  <td className="px-4 py-3 font-medium text-text-primary">{admin.name}</td>
-                  <td className="px-4 py-3 text-text-secondary">{admin.email}</td>
-                  <td className="px-4 py-3 text-text-secondary">{admin.school}</td>
+                  <td className="px-4 py-3 font-medium text-text-primary">{admin.username || admin.user?.username}</td>
+                  <td className="px-4 py-3 text-text-secondary">{admin.email || admin.user?.email}</td>
+                  <td className="px-4 py-3 text-text-secondary">{admin.school?.name || '-'}</td>
                   <td className="px-4 py-3 text-center">
                     <Badge variant={admin.role === 'super_admin' ? 'accent' : 'default'} size="sm">
                       {admin.role === 'super_admin' ? t('admin.superAdmin') : t('admin.schoolAdmin')}
@@ -134,6 +137,7 @@ export default function AdminManagement() {
               ))}
             </tbody>
           </table>
+          )}
         </div>
       </Card>
 
