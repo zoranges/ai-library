@@ -1,27 +1,39 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate, Outlet, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import {
-  BookOpen, User, LogOut, Menu, X, Bell, Moon, Sun, Shield,
-  Home, BookMarked, Trophy, ChevronLeft, ChevronRight,
-  Sparkles, Settings,
+  User, LogOut, Menu, Globe, ChevronDown, Sun, Moon, Bell,
+  Home, BookMarked, Trophy, Sparkles, Heart,
+  ChevronRight, Settings, Target, Camera,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuthStore } from '@/stores/authStore';
 import { useTheme } from '@/hooks/useTheme';
-import LanguageSwitcher from '@/components/LanguageSwitcher';
+
+const LANGS = [
+  { code: 'en', label: 'English', flag: 'GB' },
+  { code: 'ms', label: 'Bahasa Melayu', flag: 'MY' },
+  { code: 'zh', label: '中文', flag: 'CN' },
+  { code: 'ta', label: 'தமிழ்', flag: 'IN' },
+];
 
 interface NavItem {
   key: string;
   label: string;
   path: string;
   icon: any;
+  iconImage?: string;
 }
 
 export default function SidebarLayout() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [showLangMenu, setShowLangMenu] = useState(false);
+  const [showHeaderLangMenu, setShowHeaderLangMenu] = useState(false);
+  const [showUserMenu, setShowUserMenu] = useState(false);
+  const headerLangRef = useRef<HTMLDivElement>(null);
+  const userMenuRef = useRef<HTMLDivElement>(null);
   const { user, isAuthenticated, fetchMe, logout } = useAuthStore();
   const { toggleTheme, isDark } = useTheme();
   const navigate = useNavigate();
@@ -40,184 +52,200 @@ export default function SidebarLayout() {
     setMobileOpen(false);
   }, [location.pathname]);
 
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (headerLangRef.current && !headerLangRef.current.contains(e.target as Node)) {
+        setShowHeaderLangMenu(false);
+      }
+      if (userMenuRef.current && !userMenuRef.current.contains(e.target as Node)) {
+        setShowUserMenu(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
   function handleLogout() {
     logout();
     navigate('/login');
   }
 
   const mainNav: NavItem[] = [
-    { key: 'home', label: t('nav.home'), path: '/', icon: Home },
-    { key: 'library', label: t('nav.books'), path: '/books', icon: BookMarked },
-    { key: 'leaderboard', label: t('nav.leaderboard'), path: '/leaderboard', icon: Trophy },
-  ];
-
-  const secondaryNav: NavItem[] = [
-    { key: 'profile', label: t('nav.profile'), path: '/profile', icon: User },
-    { key: 'achievements', label: t('nav.achievements'), path: '/profile/achievements', icon: Sparkles },
-    { key: 'settings', label: t('nav.settings'), path: '/profile', icon: Settings },
+    { key: 'home', label: t('nav.home'), path: '/', icon: Home, iconImage: '/nav-icons/home.png' },
+    { key: 'library', label: t('nav.books'), path: '/books', icon: BookMarked, iconImage: '/nav-icons/library.png' },
+    { key: 'favorites', label: t('nav.favorites'), path: '/profile/favorites', icon: Heart, iconImage: '/nav-icons/shoucang.png' },
+    { key: 'notes', label: t('nav.notes'), path: '/profile/notes', icon: Sparkles, iconImage: '/nav-icons/biji.png' },
+    { key: 'achievements', label: t('nav.achievements'), path: '/profile/achievements', icon: Trophy, iconImage: '/nav-icons/chengjiu.png' },
+    { key: 'leaderboard', label: t('nav.leaderboard'), path: '/leaderboard', icon: Trophy, iconImage: '/nav-icons/gaoliang.png' },
   ];
 
   const sidebarContent = (
     <div className="flex flex-col h-full">
-      <Link to="/" className="flex items-center gap-3 px-4 py-4 border-b border-border/60">
-        <div className="h-9 w-9 rounded-lg bg-gradient-to-br from-accent to-blue-600 flex items-center justify-center shrink-0 shadow-sm shadow-accent/20">
-          <BookOpen className="h-5 w-5 text-white" strokeWidth={2} />
-        </div>
-        {!collapsed && (
-          <span className="text-base font-extrabold text-text-primary tracking-tight whitespace-nowrap">AI Library</span>
-        )}
-      </Link>
+      {/* Logo */}
+      <div className="px-4 py-3 border-b border-white/10 relative z-10 flex justify-center">
+        <Link to="/">
+          <img src="/logo.png" alt="AI Library" className="h-28 w-auto" />
+        </Link>
+      </div>
 
-      <nav className="flex-1 overflow-y-auto py-4 px-2.5 space-y-5">
-        <div>
-          {!collapsed && (
-            <p className="px-3 mb-1.5 text-[11px] font-bold text-text-tertiary uppercase tracking-widest">Menu</p>
-          )}
-          <div className="space-y-0.5">
-            {mainNav.map((item) => {
-              const active = isActive(item.path, item.key);
-              return (
-                <Link
-                  key={item.key}
-                  to={item.path}
-                  className={cn(
-                    'flex items-center gap-3 px-3 py-2.5 text-[14px] font-medium rounded-lg transition-all duration-150',
-                    active
-                      ? 'text-accent bg-accent/8 font-semibold'
-                      : 'text-text-secondary hover:text-text-primary hover:bg-bg-tertiary'
-                  )}
-                  title={collapsed ? item.label : undefined}
-                >
-                  <item.icon className={cn('h-5 w-5 shrink-0', active && 'text-accent')} strokeWidth={active ? 2 : 1.5} />
-                  {!collapsed && <span>{item.label}</span>}
-                  {active && !collapsed && (
-                    <span className="ml-auto w-1.5 h-1.5 rounded-full bg-accent" />
-                  )}
-                </Link>
-              );
-            })}
-          </div>
-        </div>
-
-        {isAuthenticated && (
-          <div>
-            {!collapsed && (
-              <p className="px-3 mb-1.5 text-[11px] font-bold text-text-tertiary uppercase tracking-widest">Account</p>
-            )}
-            <div className="space-y-0.5">
-              {secondaryNav.map((item) => {
-                const active = isActive(item.path, item.key);
-                return (
-                  <Link
-                    key={item.key}
-                    to={item.path}
-                    className={cn(
-                      'flex items-center gap-3 px-3 py-2.5 text-[14px] font-medium rounded-lg transition-all duration-150',
-                      active
-                        ? 'text-accent bg-accent/8 font-semibold'
-                        : 'text-text-secondary hover:text-text-primary hover:bg-bg-tertiary'
-                    )}
-                    title={collapsed ? item.label : undefined}
-                  >
-                    <item.icon className={cn('h-5 w-5 shrink-0', active && 'text-accent')} strokeWidth={active ? 2 : 1.5} />
-                    {!collapsed && <span>{item.label}</span>}
-                  </Link>
-                );
-              })}
-
-              {(user?.role === 'super_admin' || user?.role === 'admin') && (
-                <Link
-                  to="/admin"
-                  className="flex items-center gap-3 px-3 py-2 text-[13px] font-medium text-text-secondary hover:text-accent hover:bg-accent/5 rounded-lg transition-all duration-150"
-                  title={collapsed ? t('nav.admin') : undefined}
-                >
-                  <Shield className="h-[18px] w-[18px] shrink-0" strokeWidth={1.5} />
-                  {!collapsed && <span>{t('nav.admin')}</span>}
-                </Link>
+      {/* Nav items */}
+      <nav className="flex-1 py-4 overflow-y-auto overflow-x-hidden px-3 space-y-1.5 relative z-10 sidebar-nav">
+        {mainNav.map((item) => {
+          const active = isActive(item.path, item.key);
+          return (
+            <Link
+              key={item.key}
+              to={item.path}
+              className={cn(
+                'flex items-center gap-4 h-[60px] text-[17px] transition-all duration-300 rounded-xl font-semibold tracking-wide',
+                active
+                  ? 'text-[#1E3A8A]'
+                  : 'text-white hover:bg-white/10 hover:text-white/90',
+                collapsed && 'justify-center px-0'
               )}
-            </div>
-          </div>
-        )}
+              style={active ? {
+                background: 'linear-gradient(180deg, rgba(255,255,255,0.95) 0%, rgba(219,234,254,0.85) 50%, rgba(191,219,254,0.75) 100%)',
+                border: '1.5px solid rgba(96,165,250,0.5)',
+                boxShadow: '0 2px 12px rgba(0,0,0,0.12), 0 0 0 3px rgba(59,130,246,0.12), 0 0 20px rgba(59,130,246,0.08), inset 0 1px 0 rgba(255,255,255,0.9)',
+                backdropFilter: 'blur(8px)',
+              } : undefined}
+            >
+              {item.iconImage ? (
+                <img src={item.iconImage} alt="" className="h-[38px] w-[38px] shrink-0 object-contain" />
+              ) : (
+                <item.icon className={cn('h-5 w-5 shrink-0', active && 'text-[#2563EB]')} strokeWidth={1.5} />
+              )}
+              {!collapsed && <span className="truncate">{item.label}</span>}
+            </Link>
+          );
+        })}
       </nav>
 
-      <div className="border-t border-border/60 p-2.5">
-        {isAuthenticated ? (
-          <div className="space-y-1">
-            <Link
-              to="/profile"
-              className="flex items-center gap-3 px-2.5 py-2 rounded-lg hover:bg-bg-tertiary transition-colors group"
-            >
-              <div className="h-8 w-8 rounded-full bg-gradient-to-br from-accent/20 to-blue-500/20 flex items-center justify-center shrink-0 ring-1 ring-accent/10">
-                <span className="text-xs font-bold text-accent">
-                  {user?.username?.charAt(0)?.toUpperCase() || 'U'}
-                </span>
-              </div>
-              {!collapsed && (
-                <div className="flex-1 min-w-0">
-                  <p className="text-[13px] font-semibold text-text-primary truncate leading-tight">{user?.username}</p>
-                  <p className="text-[11px] text-text-tertiary leading-tight">{t('nav.viewProfile')}</p>
-                </div>
-              )}
-            </Link>
-            <button
-              onClick={handleLogout}
-              className="flex items-center gap-3 px-2.5 py-2 w-full text-[13px] text-text-tertiary hover:text-error hover:bg-error/5 rounded-lg transition-colors"
-            >
-              <LogOut className="h-[18px] w-[18px] shrink-0" strokeWidth={1.5} />
-              {!collapsed && <span>{t('nav.logout')}</span>}
+      {/* Kids Mode */}
+      <div className="px-3 pb-4 relative z-10">
+        <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-4 border border-white/20">
+          <div className="flex items-center gap-2 mb-3">
+            <img src="/dun.png" alt="Shield" className="w-8 h-8 rounded-full" />
+            <span className="text-white font-bold text-lg">Kids Mode</span>
+          </div>
+          <div className="flex items-center justify-center mb-3">
+            <img src="/youyi.png" alt="Kids" className="h-18 w-auto rounded-lg" />
+          </div>
+          <p className="text-white/70 text-sm mb-3">Bright, safe, bilingual learning space.</p>
+          <div className="flex items-center justify-between">
+            <span className="text-white/80 text-sm">Enable</span>
+            <button className="w-12 h-7 rounded-full transition-colors relative" style={{ backgroundColor: '#46b969' }}>
+              <span className="absolute right-0.5 top-0.5 w-6 h-6 rounded-full bg-white shadow-lg transform translate-x-0 transition-transform"></span>
             </button>
           </div>
+        </div>
+      </div>
+
+      {/* Bottom Controls */}
+      <div className="border-t border-white/10 p-3 space-y-1 relative z-10">
+        {/* Language Switcher */}
+        <div className="relative">
+          <button
+            onClick={() => setShowLangMenu(!showLangMenu)}
+            className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-white/70 hover:bg-white/10 hover:text-white text-sm transition-colors"
+          >
+            <Globe className="h-4 w-4 shrink-0" />
+            <span className="flex-1 text-left truncate">{LANGS.find(l => l.code === i18n.language)?.label || 'English'}</span>
+            <ChevronDown className={`h-3.5 w-3.5 shrink-0 transition-transform ${showLangMenu ? 'rotate-180' : ''}`} />
+          </button>
+          {showLangMenu && (
+            <div className="absolute left-full bottom-0 ml-2 bg-white rounded-xl shadow-xl border border-gray-100 py-1 z-50 min-w-[150px]">
+              {LANGS.map(({ code, label }) => (
+                <button
+                  key={code}
+                  onClick={() => { i18n.changeLanguage(code); setShowLangMenu(false); }}
+                  className={`w-full text-left px-4 py-2 text-sm hover:bg-blue-50 hover:text-[#2563EB] transition-colors flex items-center gap-2 ${
+                    i18n.language === code ? 'bg-blue-50 text-[#2563EB] font-semibold' : 'text-gray-700'
+                  }`}
+                >
+                  <span className="text-xs font-bold w-6">{code.toUpperCase()}</span>
+                  <span>{label}</span>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+        <button
+          onClick={toggleTheme}
+          className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-white/70 hover:bg-white/10 hover:text-white text-sm transition-colors"
+        >
+          {isDark ? <Sun className="h-4 w-4 shrink-0" /> : <Moon className="h-4 w-4 shrink-0" />}
+          <span>{isDark ? t('common.lightMode') : t('common.darkMode')}</span>
+        </button>
+        <button className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-white/70 hover:bg-white/10 hover:text-white text-sm transition-colors relative">
+          <Bell className="h-4 w-4 shrink-0" />
+          <span>Notifications</span>
+          <span className="absolute right-2 h-4 w-4 rounded-full bg-red-500 text-white text-[9px] font-bold flex items-center justify-center">3</span>
+        </button>
+      </div>
+
+      {/* Footer - Logout */}
+      <div className="border-t border-white/10 p-3 relative z-10">
+        {isAuthenticated ? (
+          <button
+            onClick={handleLogout}
+            className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg bg-white/15 text-white hover:bg-white/25 text-sm transition-colors"
+          >
+            <LogOut className="h-4 w-4 shrink-0" />
+            <span>{t('nav.logout')}</span>
+          </button>
         ) : (
-          <div className="space-y-1.5 px-1">
+          <div className="space-y-1.5">
             <Link
               to="/login"
-              className="block px-3 py-2 text-[13px] font-medium text-text-secondary hover:text-text-primary hover:bg-bg-tertiary rounded-lg transition-colors text-center"
+              className="block px-3 py-2 text-[13px] font-medium text-white/70 hover:text-white hover:bg-white/10 rounded-lg transition-colors text-center"
             >
               {t('auth.login')}
             </Link>
             <Link
               to="/register"
-              className="block px-3 py-2 text-[13px] font-semibold text-white bg-accent rounded-lg hover:bg-accent-hover transition-colors text-center shadow-sm"
+              className="block px-3 py-2 text-[13px] font-semibold text-white bg-white/15 rounded-lg hover:bg-white/25 transition-colors text-center"
             >
               {t('auth.register')}
             </Link>
           </div>
         )}
       </div>
-
-      <button
-        onClick={() => setCollapsed(!collapsed)}
-        className="hidden lg:flex items-center justify-center h-9 border-t border-border/60 text-text-tertiary hover:text-text-secondary hover:bg-bg-tertiary transition-colors"
-        title={collapsed ? t('common.expandAll', 'Expand') : t('common.collapse', 'Collapse')}
-      >
-        {collapsed ? <ChevronRight className="h-3.5 w-3.5" strokeWidth={2} /> : <ChevronLeft className="h-3.5 w-3.5" strokeWidth={2} />}
-      </button>
     </div>
   );
 
   return (
     <div className="min-h-screen flex bg-bg-secondary">
+      {/* Desktop Sidebar */}
       <aside
         className={cn(
-          'hidden lg:flex flex-col fixed inset-y-0 left-0 z-40 bg-surface border-r border-border/60 transition-all duration-200',
-          collapsed ? 'w-16' : 'w-[248px]'
+          'hidden lg:flex flex-col fixed inset-y-0 left-0 z-40 transition-all duration-200 overflow-hidden',
+          collapsed ? 'w-20' : 'w-[250px]'
         )}
-        style={{ boxShadow: collapsed ? 'none' : '1px 0 20px rgba(0,0,0,0.03)' }}
+        style={{
+          backgroundColor: '#1565C0',
+        }}
       >
         {sidebarContent}
       </aside>
 
+      {/* Mobile Sidebar */}
       {mobileOpen && (
         <div className="lg:hidden fixed inset-0 z-50 flex">
           <div className="fixed inset-0 bg-black/30 backdrop-blur-[2px]" onClick={() => setMobileOpen(false)} />
-          <aside className="relative w-64 bg-surface border-r border-border animate-slide-in-left z-50">
+          <aside
+            className="relative w-64 flex flex-col overflow-hidden animate-slide-in-left z-50"
+            style={{ backgroundColor: '#1565C0' }}
+          >
             {sidebarContent}
           </aside>
         </div>
       )}
 
-      <div className={cn('flex-1 flex flex-col min-w-0', collapsed ? 'lg:ml-16' : 'lg:ml-[248px]')}>
-        <header className="sticky top-0 z-30 h-12 bg-surface/80 backdrop-blur-md border-b border-border/60">
+      {/* Main Content Area */}
+      <div className={cn('flex-1 flex flex-col min-w-0', collapsed ? 'lg:ml-20' : 'lg:ml-[250px]')}>
+        {/* Top Header — Aliyun style */}
+        <header className="sticky top-0 z-30 h-20 bg-white shadow-sm border-b border-gray-50">
           <div className="h-full flex items-center gap-3 px-4 lg:px-6">
             <button
               onClick={() => setMobileOpen(true)}
@@ -226,33 +254,146 @@ export default function SidebarLayout() {
               <Menu className="h-[18px] w-[18px]" strokeWidth={1.5} />
             </button>
 
-            <span className="text-[11px] text-text-tertiary font-medium hidden sm:block tracking-wide uppercase select-none">
+            <span className="text-xs text-text-tertiary font-medium tracking-wide uppercase select-none">
               {isActive('/', 'home') && t('nav.home')}
               {location.pathname.startsWith('/books') && t('nav.library')}
               {isActive('/leaderboard', 'leaderboard') && t('nav.leaderboard')}
               {location.pathname.startsWith('/profile') && t('nav.profile')}
-              {location.pathname.startsWith('/quiz') && t('quiz.title')}
+              {location.pathname.startsWith('/quiz') && 'Quiz'}
             </span>
 
             <div className="flex-1" />
 
-            <div className="flex items-center gap-0.5">
+            {/* Desktop header controls */}
+            <div className="hidden lg:flex items-center gap-3">
+              {/* Language Switcher */}
+              <div className="relative" ref={headerLangRef}>
+                <button
+                  onClick={() => setShowHeaderLangMenu(!showHeaderLangMenu)}
+                  className="flex items-center gap-2 px-4 py-2.5 rounded-2xl text-gray-700 hover:bg-gradient-to-br hover:from-blue-50 hover:to-cyan-50 hover:text-[#1565C0] text-sm font-medium transition-all duration-300 hover:shadow-sm"
+                >
+                  <Globe className="h-5 w-5 shrink-0" />
+                  <span className="hidden sm:inline">{LANGS.find(l => l.code === i18n.language)?.code?.toUpperCase() || 'EN'}</span>
+                  <ChevronDown className={`h-4 w-4 shrink-0 transition-transform ${showHeaderLangMenu ? 'rotate-180' : ''}`} />
+                </button>
+                {showHeaderLangMenu && (
+                  <div className="absolute right-0 top-full mt-2 bg-white rounded-2xl shadow-xl border border-gray-100 py-1.5 z-50 min-w-[150px]">
+                    {LANGS.map(({ code, label }) => (
+                      <button
+                        key={code}
+                        onClick={() => { i18n.changeLanguage(code); setShowHeaderLangMenu(false); }}
+                        className={`w-full text-left px-4 py-3 text-sm hover:bg-gradient-to-r hover:from-blue-50 hover:to-cyan-50 hover:text-[#1565C0] transition-all duration-200 flex items-center gap-3 ${
+                          i18n.language === code ? 'bg-gradient-to-r from-blue-50 to-cyan-50 text-[#1565C0] font-semibold' : 'text-gray-700'
+                        }`}
+                      >
+                        <span className="text-xs font-bold w-7 bg-gradient-to-br from-blue-500 to-cyan-500 text-white rounded-lg px-2 py-1 text-center">{code.toUpperCase()}</span>
+                        <span>{label}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Theme Toggle */}
               <button
                 onClick={toggleTheme}
-                className="p-1.5 rounded-md text-text-tertiary hover:text-text-primary hover:bg-bg-tertiary transition-colors"
-                title={isDark ? t('common.lightMode') : t('common.darkMode')}
+                className="flex items-center gap-2 px-4 py-2.5 rounded-2xl text-gray-700 hover:bg-gradient-to-br hover:from-blue-50 hover:to-cyan-50 hover:text-[#1565C0] text-sm font-medium transition-all duration-300 hover:shadow-sm"
               >
-                {isDark ? <Sun className="h-[18px] w-[18px]" strokeWidth={1.5} /> : <Moon className="h-[18px] w-[18px]" strokeWidth={1.5} />}
+                {isDark ? <Sun className="h-5 w-5 shrink-0" /> : <Moon className="h-5 w-5 shrink-0" />}
               </button>
 
-              <LanguageSwitcher />
-
-              <button className="relative p-1.5 rounded-md text-text-tertiary hover:text-text-primary hover:bg-bg-tertiary transition-colors">
-                <Bell className="h-[18px] w-[18px]" strokeWidth={1.5} />
-                <span className="absolute top-1.5 right-1.5 h-1.5 w-1.5 bg-error rounded-full ring-2 ring-surface/80" />
+              {/* Notifications */}
+              <button className="flex items-center gap-2 px-4 py-2.5 rounded-2xl text-gray-700 hover:bg-gradient-to-br hover:from-blue-50 hover:to-cyan-50 hover:text-[#1565C0] text-sm font-medium transition-all duration-300 hover:shadow-sm relative">
+                <Bell className="h-5 w-5 shrink-0" />
+                <span className="absolute -top-1 -right-1 h-5 w-5 rounded-full bg-gradient-to-br from-red-500 to-orange-500 text-white text-[10px] font-bold flex items-center justify-center shadow-lg">3</span>
               </button>
             </div>
 
+            {/* User Profile Dropdown */}
+            {isAuthenticated && (
+              <div className="relative hidden lg:block" ref={userMenuRef}>
+                <button
+                  onClick={() => setShowUserMenu(!showUserMenu)}
+                  className="flex items-center gap-3 bg-gradient-to-r from-blue-50 to-cyan-50 hover:from-blue-100 hover:to-cyan-100 rounded-2xl px-4 py-2.5 transition-all duration-300 hover:shadow-md"
+                >
+                  <img
+                    src={user?.avatar || '/default-avatar.png'}
+                    alt=""
+                    className="h-10 w-10 rounded-full object-cover shrink-0 ring-2 ring-white shadow-sm"
+                  />
+                  <div className="text-left hidden sm:block">
+                    <p className="text-sm font-bold text-gray-800 leading-tight">
+                      {user?.username || t('common.student', 'Student')}
+                    </p>
+                  </div>
+                  <ChevronDown className={`h-4 w-4 text-gray-500 shrink-0 transition-transform ${showUserMenu ? 'rotate-180' : ''}`} />
+                </button>
+                {showUserMenu && (
+                  <div className="absolute right-0 top-full mt-2 bg-white rounded-2xl shadow-xl border border-gray-100 z-50 w-72 overflow-hidden">
+                    <div className="p-5 flex flex-col items-center">
+                      <div className="relative mb-3 group cursor-pointer">
+                        <img
+                          src={user?.avatar || '/default-avatar.png'}
+                          alt=""
+                          className="h-16 w-16 rounded-full object-cover ring-4 ring-blue-100 shrink-0"
+                        />
+                        <label className="absolute inset-0 rounded-full bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer">
+                          <Camera className="h-5 w-5 text-white" />
+                          <input type="file" accept="image/*" className="hidden" />
+                        </label>
+                      </div>
+                      <p className="font-bold text-base text-[#1E293B] mb-0.5">
+                        {user?.username || t('common.student', 'Student')}
+                      </p>
+                      <p className="text-sm text-gray-500 mb-3">
+                        {user?.email || 'student@example.com'}
+                      </p>
+                      <div className="rounded-lg bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-100 px-3 py-1.5">
+                        <p className="text-sm font-bold text-[#1E293B] font-mono tracking-wide text-center">
+                          {(user as any)?.icNumber || (user?.id ? String(user.id).substring(0, 6) : '000000')}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="border-t border-gray-100 py-1">
+                      <Link
+                        to="/profile/growth"
+                        onClick={() => setShowUserMenu(false)}
+                        className="w-full flex items-center gap-3 px-5 py-2.5 text-sm font-medium text-[#1E293B] hover:bg-gray-50 transition-colors"
+                      >
+                        <div className="h-8 w-8 rounded-lg bg-rose-50 flex items-center justify-center shrink-0">
+                          <Target className="h-4 w-4 text-rose-500" />
+                        </div>
+                        <span className="flex-1 text-left">{t('profile.readingGoals', 'Reading Goals')}</span>
+                        <ChevronRight className="h-3.5 w-3.5 text-gray-300" />
+                      </Link>
+                      <Link
+                        to="/profile"
+                        onClick={() => setShowUserMenu(false)}
+                        className="w-full flex items-center gap-3 px-5 py-2.5 text-sm font-medium text-[#1E293B] hover:bg-gray-50 transition-colors"
+                      >
+                        <div className="h-8 w-8 rounded-lg bg-gray-100 flex items-center justify-center shrink-0">
+                          <Settings className="h-4 w-4 text-gray-500" />
+                        </div>
+                        <span className="flex-1 text-left">{t('nav.profile', 'Manage')}</span>
+                        <ChevronRight className="h-3.5 w-3.5 text-gray-300" />
+                      </Link>
+                      <button
+                        onClick={() => { handleLogout(); setShowUserMenu(false); }}
+                        className="w-full flex items-center gap-3 px-5 py-2.5 text-sm font-medium text-red-600 hover:bg-red-50 transition-colors"
+                      >
+                        <div className="h-8 w-8 rounded-lg bg-red-50 flex items-center justify-center shrink-0">
+                          <LogOut className="h-4 w-4 text-red-500" />
+                        </div>
+                        <span className="flex-1 text-left">{t('nav.logout', 'Sign Out')}</span>
+                        <ChevronRight className="h-3.5 w-3.5 text-red-300" />
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Mobile profile link */}
             {isAuthenticated && (
               <Link
                 to="/profile"
@@ -270,14 +411,12 @@ export default function SidebarLayout() {
           <Outlet />
         </main>
 
+        {/* Footer */}
         <footer className="border-t border-border/60 bg-surface/50 shrink-0">
           <div className="px-4 sm:px-6 lg:px-8 py-6">
             <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
               <div className="flex items-center gap-2">
-                <div className="h-5 w-5 rounded bg-gradient-to-br from-accent to-blue-600 flex items-center justify-center">
-                  <BookOpen className="h-3 w-3 text-white" strokeWidth={2} />
-                </div>
-                <span className="text-[13px] font-bold text-text-primary tracking-tight">AI Library</span>
+                <img src="/logo.png" alt="AI Library" className="h-6 w-auto" />
               </div>
               <div className="flex items-center gap-5 text-[12px] text-text-tertiary">
                 <Link to="/" className="hover:text-accent transition-colors">{t('nav.home')}</Link>

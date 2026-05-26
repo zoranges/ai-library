@@ -9,7 +9,7 @@ interface AuthState {
   isLoading: boolean;
   error: string | null;
 
-  login: (email: string, password: string) => Promise<void>;
+  login: (email: string, password: string) => Promise<any>;
   register: (data: { username: string; email: string; password: string; schoolId: string; grade?: string; icNumber?: string; preferredLanguage?: string }) => Promise<void>;
   logout: () => void;
   fetchMe: () => Promise<void>;
@@ -51,6 +51,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       const { token, user } = res.data;
       storeToken(token);
       set({ token, user, isAuthenticated: true, isLoading: false });
+      return user;
     } catch (err: any) {
       const message = err?.response?.data?.message || err?.message || '登录失败';
       set({ error: message, isLoading: false });

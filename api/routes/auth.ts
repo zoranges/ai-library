@@ -61,7 +61,7 @@ router.post('/login', async (req: Request, res: Response): Promise<void> => {
 
     await run(
       'INSERT INTO login_sessions (id, userId, ipAddress, userAgent, lastActiveAt, isCurrent) VALUES (?, ?, ?, ?, ?, ?)',
-      [sessionId, user.id, clientIp, userAgent.substring(0, 500), new Date().toISOString(), 1]
+      [sessionId, user.id, clientIp, userAgent.substring(0, 500), new Date().toISOString().slice(0, 19).replace('T', ' '), 1]
     );
 
     const { password: _, ...userWithoutPassword } = user;
@@ -77,7 +77,8 @@ router.post('/login', async (req: Request, res: Response): Promise<void> => {
         refreshToken,
       },
     });
-  } catch (error) {
+  } catch (error: any) {
+    console.error('Login error:', error?.message || error, error?.stack);
     res.status(500).json({ success: false, error: 'Login failed' });
   }
 });
@@ -179,7 +180,7 @@ router.post('/forgot-password', async (req: Request, res: Response): Promise<voi
     }
 
     const token = uuidv4();
-    const expiresAt = new Date(Date.now() + 3600000).toISOString(); // 1 hour expiry
+    const expiresAt = new Date(Date.now() + 3600000).toISOString().slice(0, 19).replace('T', ' ');
 
     await run(
       'INSERT INTO password_reset_tokens (id, userId, token, expiresAt, used) VALUES (?, ?, ?, ?, ?)',

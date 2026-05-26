@@ -310,7 +310,7 @@ router.put('/notes/:id', verifyToken, async (req: Request, res: Response): Promi
       return;
     }
 
-    const now = new Date().toISOString();
+    const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
     if (title) await run('UPDATE notes SET title = ?, updatedAt = ? WHERE id = ?', [title, now, noteId]);
     if (content) await run('UPDATE notes SET content = ?, updatedAt = ? WHERE id = ?', [content, now, noteId]);
     if (page !== undefined) await run('UPDATE notes SET page = ?, updatedAt = ? WHERE id = ?', [page, now, noteId]);

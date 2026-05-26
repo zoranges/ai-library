@@ -84,7 +84,7 @@ router.post('/progress', verifyToken, async (req: Request, res: Response): Promi
 
     const percentage = Math.round((currentPage / totalPages) * 100 * 100) / 100;
     const isCompleted = currentPage >= totalPages ? 1 : 0;
-    const now = new Date().toISOString();
+    const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
 
     const existing = await queryOne(
       'SELECT id, isCompleted FROM reading_progress WHERE userId = ? AND bookId = ?',
@@ -153,7 +153,7 @@ router.post('/sessions', verifyToken, async (req: Request, res: Response): Promi
       return;
     }
 
-    const now = new Date().toISOString();
+    const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
     const sessionId = uuidv4();
 
     await run(

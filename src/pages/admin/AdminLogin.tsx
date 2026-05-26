@@ -26,8 +26,7 @@ export default function AdminLogin() {
     e.preventDefault();
     setError('');
     try {
-      await login(email, password);
-      const { user } = useAuthStore.getState();
+      const user = await login(email, password);
       if (user?.role === 'super_admin' || user?.role === 'admin') {
         navigate('/admin');
       } else {
