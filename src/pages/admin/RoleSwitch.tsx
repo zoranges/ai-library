@@ -1,11 +1,13 @@
 import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useNavigate } from 'react-router-dom';
 import { ArrowLeftRight, Shield, Building, CheckCircle } from 'lucide-react';
 import Button from '@/components/ui/Button';
 import Badge from '@/components/ui/Badge';
 import Modal from '@/components/ui/Modal';
 import { cn } from '@/lib/utils';
 import { adminApi } from '@/utils/api';
+import { useAuthStore } from '@/stores/authStore';
 
 interface School {
   id: string;
@@ -16,14 +18,17 @@ interface School {
 
 export default function RoleSwitch() {
   const { t } = useTranslation();
+  const navigate = useNavigate();
+  const switchRole = useAuthStore((s) => s.switchRole);
   const [schools, setSchools] = useState<School[]>([]);
   const [switchedSchool, setSwitchedSchool] = useState<string | null>(null);
   const [confirmModal, setConfirmModal] = useState(false);
   const [pendingSchool, setPendingSchool] = useState<string | null>(null);
+  const [switching, setSwitching] = useState(false);
 
   useEffect(() => {
     adminApi.getSchools({ pageSize: 100 }).then((res: any) => {
-      const list = res?.list || res?.data || res?.schools || [];
+      const list = res?.data?.data || res?.data || [];
       setSchools(Array.isArray(list) ? list : []);
     }).catch(() => {});
   }, []);
@@ -36,16 +41,38 @@ export default function RoleSwitch() {
   }
 
   async function confirmSwitch() {
-    if (pendingSchool) {
-      await adminApi.switchRole('admin').catch(() => {});
-      setSwitchedSchool(pendingSchool);
+    if (!pendingSchool) return;
+    setSwitching(true);
+    try {
+      // Save original token so we can switch back
+      const originalToken = localStorage.getItem('auth_token');
+      if (originalToken) {
+        sessionStorage.setItem('auth_token_original', originalToken);
+      }
+
+      const res = await adminApi.switchRole('admin', pendingSchool);
+      if (res?.data) {
+        switchRole(res.data.token, res.data.user);
+        setSwitchedSchool(pendingSchool);
+        // Reload to apply the new role across the app
+        window.location.reload();
+        return;
+      }
+    } catch {} finally {
+      setSwitching(false);
+      setConfirmModal(false);
+      setPendingSchool(null);
     }
-    setConfirmModal(false);
-    setPendingSchool(null);
   }
 
   function handleSwitchBack() {
-    setSwitchedSchool(null);
+    // Restore original token
+    const originalToken = sessionStorage.getItem('auth_token_original');
+    if (originalToken) {
+      localStorage.setItem('auth_token', originalToken);
+      sessionStorage.removeItem('auth_token_original');
+    }
+    navigate(0);
   }
 
   const pendingSchoolData = pendingSchool ? schools.find((s) => s.id === pendingSchool) : null;

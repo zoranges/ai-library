@@ -1,17 +1,18 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Search, Download, X, BookOpen, Clock, Target, Award, Loader2, ChevronLeft, ChevronRight, RotateCcw } from 'lucide-react';
+import { Search, Download, X, BookOpen, Clock, Target, Award, Loader2, ChevronLeft, ChevronRight, Trash2 } from 'lucide-react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
 import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
 import Select from '@/components/ui/Select';
 import Badge from '@/components/ui/Badge';
-import Modal from '@/components/ui/Modal';
+import CascadingFilter from '@/components/ui/CascadingFilter';
 import { useAuthStore } from '@/stores/authStore';
 import { cn } from '@/lib/utils';
 import { adminApi } from '@/utils/api';
 import { exportToExcel } from '@/utils/export';
+import ActivityHeatmap from '@/components/ui/ActivityHeatmap';
 
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444'];
 
@@ -21,7 +22,7 @@ export default function StudentManagement() {
   const isSuper = user?.role === 'super_admin';
   const [tab, setTab] = useState('all');
   const [search, setSearch] = useState('');
-  const [schoolId, setSchoolId] = useState('');
+  const [filters, setFilters] = useState({ country: '', state: '', district: '', schoolId: '' });
   const [activity, setActivity] = useState('');
   const [regDateFrom, setRegDateFrom] = useState('');
   const [regDateTo, setRegDateTo] = useState('');
@@ -30,7 +31,6 @@ export default function StudentManagement() {
   const [students, setStudents] = useState<any[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
-  const [schools, setSchools] = useState<any[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [studentReport, setStudentReport] = useState<any>(null);
   const [reportLoading, setReportLoading] = useState(false);
@@ -41,19 +41,17 @@ export default function StudentManagement() {
     { key: 'unregistered', label: t('admin.unregistered') },
   ];
 
-  const fetchSchools = useCallback(async () => {
-    try {
-      const res = await adminApi.getSchools({ pageSize: 500 });
-      setSchools(res.data?.data || []);
-    } catch {}
-  }, []);
-
   const fetchStudents = useCallback(async () => {
     setLoading(true);
     try {
       const params: Record<string, any> = { page, pageSize };
       if (search) params.search = search;
-      if (schoolId) params.schoolId = schoolId;
+      if (filters.country) params.country = filters.country;
+      if (filters.state) params.state = filters.state;
+      if (filters.district) params.district = filters.district;
+      if (filters.schoolId) params.schoolId = filters.schoolId;
+      if (regDateFrom) params.regDateFrom = regDateFrom;
+      if (regDateTo) params.regDateTo = regDateTo;
       if (tab === 'registered') params.isDeregistered = '0';
       else if (tab === 'unregistered') params.isDeregistered = '1';
       else params.isDeregistered = 'all';
@@ -63,10 +61,11 @@ export default function StudentManagement() {
     } catch {} finally {
       setLoading(false);
     }
-  }, [page, pageSize, search, schoolId, tab]);
+  }, [page, pageSize, search, filters, tab, regDateFrom, regDateTo]);
 
-  useEffect(() => { fetchSchools(); }, [fetchSchools]);
-  useEffect(() => { fetchStudents(); }, [fetchStudents]);
+  useEffect(() => {
+    fetchStudents();
+  }, [fetchStudents, tab]);
 
   async function loadStudentReport(id: string) {
     setSelectedId(id);
@@ -84,15 +83,15 @@ export default function StudentManagement() {
     }
   }
 
-  async function handleDeregister(id: string) {
-    await adminApi.deregisterStudent(id);
-    fetchStudents();
-    setSelectedId(null);
-  }
-
-  async function handleReregister(id: string) {
-    await adminApi.reregisterStudent(id);
-    fetchStudents();
+  async function handleHardDelete(id: string, studentName: string) {
+    if (!window.confirm(`Permanently delete "${studentName}" and ALL associated data (reading history, quizzes, notes, etc.)? This action CANNOT be undone.`)) return;
+    try {
+      await adminApi.hardDeleteStudent(id);
+      fetchStudents();
+      setSelectedId(null);
+    } catch (err: any) {
+      alert(err?.message || 'Delete failed');
+    }
   }
 
   async function handleExportAll() {
@@ -119,6 +118,7 @@ export default function StudentManagement() {
   const studentInfo = report?.student;
   const stats = report?.readingStats || {};
   const readingHistory = report?.readingHistory || [];
+  const dailyActivity = report?.dailyActivity || [];
   const langData = report?.languageDistribution;
 
   const activityOptions = [
@@ -152,13 +152,7 @@ export default function StudentManagement() {
             </button>
           ))}
         </div>
-        <div className="w-44">
-          <Select
-            options={[{ value: '', label: t('admin.allSchools') }, ...schools.map((s: any) => ({ value: s.id, label: s.name }))]}
-            value={schoolId}
-            onChange={(v) => { setSchoolId(v); setPage(1); }}
-          />
-        </div>
+        {isSuper && <CascadingFilter values={filters} onChange={(v) => { setFilters(v); setPage(1); }} />}
         <div className="w-32"><Select options={activityOptions} value={activity} onChange={setActivity} /></div>
         <div className="flex items-center gap-1.5">
           <input type="date" value={regDateFrom} onChange={(e) => { setRegDateFrom(e.target.value); setPage(1); }} className="bg-surface border border-border rounded-md px-2 py-1.5 text-[12px] text-text-primary focus:outline-none focus:ring-2 focus:ring-accent/20" />
@@ -211,8 +205,8 @@ export default function StudentManagement() {
                     </td>
                     {isSuper && (
                       <td className="px-4 py-3 text-center" onClick={(e) => e.stopPropagation()}>
-                        <Button size="sm" variant="ghost" onClick={() => s.isDeregistered ? handleReregister(s.id) : handleDeregister(s.id)}>
-                          {s.isDeregistered ? <RotateCcw className="h-3.5 w-3.5" strokeWidth={1.5} /> : <X className="h-3.5 w-3.5" strokeWidth={1.5} />}
+                        <Button size="sm" variant="ghost" className="text-red-500 hover:text-red-600 hover:bg-red-50" onClick={() => handleHardDelete(s.id, s.username)}>
+                          <Trash2 className="h-3.5 w-3.5" strokeWidth={1.5} />
                         </Button>
                       </td>
                     )}
@@ -277,6 +271,12 @@ export default function StudentManagement() {
                         </div>
                       </div>
                     ))}
+                  </div>
+
+                  <div className="border border-border rounded-lg p-3">
+                    <h4 className="text-[13px] font-medium text-text-primary mb-2">{t('readingActivity')}</h4>
+                    <ActivityHeatmap data={dailyActivity} />
+                    <p className="text-[10px] text-text-tertiary mt-1">{dailyActivity.length} days with activity</p>
                   </div>
 
                   {langData && langData.length > 0 && (

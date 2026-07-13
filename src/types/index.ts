@@ -290,6 +290,17 @@ export interface ChatMessage {
     bookId?: string;
     page?: number;
     type?: 'explain' | 'define' | 'translate' | 'chat';
+    books?: Array<{
+      id: string;
+      title: string;
+      author: string;
+      coverUrl: string;
+      description: string;
+      rating: number;
+      pageCount: number;
+      difficulty: string;
+      category?: { name: string; icon?: string; color?: string } | null;
+    }>;
   };
 }
 
@@ -345,17 +356,18 @@ export interface ApiErrorResponse {
 }
 
 export interface LoginRequest {
-  email: string;
+  email?: string;
+  icNumber?: string;
   password: string;
 }
 
 export interface RegisterRequest {
   username: string;
-  email: string;
+  email?: string;
   password: string;
   schoolId: string;
+  icNumber: string;
   grade?: string;
-  icNumber?: string;
   preferredLanguage?: string;
 }
 

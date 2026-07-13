@@ -17,9 +17,10 @@ export default defineConfig({
   server: {
     port: 5263,
     host: '0.0.0.0',
+    allowedHosts: ['libraryai.630381.com'],
     proxy: {
       '/api': {
-        target: 'http://localhost:3001',
+        target: 'http://localhost:5271',
         changeOrigin: true,
         secure: false,
         configure: (proxy, _options) => {
@@ -35,7 +36,7 @@ export default defineConfig({
         },
       },
       '/uploads': {
-        target: 'http://localhost:3001',
+        target: 'http://localhost:5271',
         changeOrigin: true,
       }
     }

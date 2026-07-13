@@ -10,6 +10,9 @@ import learningRoutes from './routes/learning.js';
 import aiRoutes from './routes/ai.js';
 import leaderboardRoutes from './routes/leaderboard.js';
 import adminRoutes from './routes/admin.js';
+import batchRoutes from './routes/batchUpload.js';
+import systemRoutes from './routes/system.js';
+import { requestLogger } from './middleware/requestLogger.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -17,8 +20,22 @@ const __dirname = path.dirname(__filename);
 const app: express.Application = express();
 
 app.use(cors());
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
+// Log large requests + skip body parsing for batch upload to avoid size limits
+app.use((req: Request, _res: Response, next: NextFunction): void => {
+  const len = parseInt(req.headers['content-length'] || '0', 10);
+  if (len > 10 * 1024 * 1024) {
+    console.log(`[REQ] ${req.method} ${req.url} type=${req.headers['content-type']} len=${(len / 1024 / 1024).toFixed(1)}MB`);
+  }
+  // Mark body as already parsed for batch upload route so body parsers skip it
+  if (req.path === '/api/admin/batch/upload' && req.method === 'POST') {
+    (req as any)._body = true;
+  }
+  next();
+});
+
+app.use(express.json({ limit: '250mb' }));
+app.use(express.urlencoded({ extended: true, limit: '250mb' }));
 app.use('/api', (_req: Request, res: Response, next: NextFunction): void => {
   res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
   res.setHeader('Pragma', 'no-cache');
@@ -26,7 +43,13 @@ app.use('/api', (_req: Request, res: Response, next: NextFunction): void => {
   next();
 });
 
-app.use('/uploads', express.static(path.join(__dirname, '..', 'uploads')));
+app.use(requestLogger);
+
+// Serve uploads as static files for local storage mode; in S3 mode files are served via signed URLs
+const uploadsPath = path.join(__dirname, '..', 'uploads');
+if (fs.existsSync(uploadsPath)) {
+  app.use('/uploads', express.static(uploadsPath));
+}
 
 const distPath = path.join(__dirname, '..', 'dist');
 app.use(express.static(distPath));
@@ -37,7 +60,9 @@ app.use('/api/reading', readingRoutes);
 app.use('/api/learning', learningRoutes);
 app.use('/api/ai', aiRoutes);
 app.use('/api/leaderboard', leaderboardRoutes);
+app.use('/api/admin/batch', batchRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api', systemRoutes);
 
 app.get('/api/health', (_req: Request, res: Response): void => {
   res.status(200).json({ success: true, message: 'ok' });

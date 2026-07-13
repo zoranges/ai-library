@@ -9,12 +9,14 @@ interface AuthState {
   isLoading: boolean;
   error: string | null;
 
-  login: (email: string, password: string) => Promise<any>;
-  register: (data: { username: string; email: string; password: string; schoolId: string; grade?: string; icNumber?: string; preferredLanguage?: string }) => Promise<void>;
+  login: (identifier: string, password: string) => Promise<any>;
+  googleLogin: (credential: string) => Promise<any>;
+  register: (data: { username: string; email?: string; password: string; schoolId: string; icNumber: string; grade?: string; preferredLanguage?: string }) => Promise<void>;
   logout: () => void;
   fetchMe: () => Promise<void>;
   clearError: () => void;
   setUser: (user: User) => void;
+  switchRole: (token: string, user: User) => void;
 }
 
 const TOKEN_KEY = 'auth_token';
@@ -44,16 +46,35 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   isLoading: false,
   error: null,
 
-  login: async (email, password) => {
+  login: async (identifier, password) => {
     set({ isLoading: true, error: null });
     try {
-      const res = await authApi.login({ email, password });
+      const isEmail = identifier.includes('@');
+      const body = isEmail
+        ? { email: identifier.trim(), password }
+        : { icNumber: identifier.trim().replace(/-/g, ''), password };
+      const res = await authApi.login(body);
       const { token, user } = res.data;
       storeToken(token);
       set({ token, user, isAuthenticated: true, isLoading: false });
       return user;
     } catch (err: any) {
       const message = err?.response?.data?.message || err?.message || '登录失败';
+      set({ error: message, isLoading: false });
+      throw err;
+    }
+  },
+
+  googleLogin: async (credential) => {
+    set({ isLoading: true, error: null });
+    try {
+      const res = await authApi.googleLogin(credential);
+      const { token, user } = res.data;
+      storeToken(token);
+      set({ token, user, isAuthenticated: true, isLoading: false });
+      return user;
+    } catch (err: any) {
+      const message = err?.response?.data?.message || err?.message || 'Google login failed';
       set({ error: message, isLoading: false });
       throw err;
     }
@@ -96,4 +117,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   clearError: () => set({ error: null }),
 
   setUser: (user) => set({ user }),
+
+  switchRole: (token, user) => {
+    storeToken(token);
+    set({ token, user, isAuthenticated: true });
+  },
 }));

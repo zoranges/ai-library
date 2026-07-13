@@ -76,10 +76,16 @@ export const authApi = {
       body: JSON.stringify({ email }),
     }),
 
-  resetPassword: (token: string, password: string) =>
+  resetPassword: (token: string, newPassword: string) =>
     request<void>('/auth/reset-password', {
       method: 'POST',
-      body: JSON.stringify({ token, password }),
+      body: JSON.stringify({ token, newPassword }),
+    }),
+
+  googleLogin: (credential: string) =>
+    request<{ token: string; user: any }>('/auth/google', {
+      method: 'POST',
+      body: JSON.stringify({ credential }),
     }),
 };
 
@@ -89,6 +95,9 @@ export const bookApi = {
 
   getBookById: (id: string) =>
     request<any>(`/books/${id}`),
+
+  getRecommendations: (id: string) =>
+    request<any[]>(`/books/${id}/recommendations`),
 
   getCategories: () =>
     request<any[]>('/books/categories'),
@@ -119,7 +128,7 @@ export const readingApi = {
   getHighlights: (bookId: string) =>
     request<any[]>(`/learning/highlights${buildQueryString({ bookId })}`),
 
-  addHighlight: (data: { bookId: string; text: string; color: string; page: number; note?: string }) =>
+  addHighlight: (data: { bookId: string; text: string; color: string; page: number; note?: string; startOffset?: number }) =>
     request<any>('/learning/highlights', {
       method: 'POST',
       body: JSON.stringify(data),
@@ -151,6 +160,9 @@ export const readingApi = {
 
   getReport: () =>
     request<any>('/reading/report'),
+
+  getAinsBridge: (bookId: string) =>
+    request<any>(`/reading/ains-bridge/${bookId}`),
 };
 
 export const favoriteApi = {
@@ -227,11 +239,14 @@ export const pointApi = {
 };
 
 export const leaderboardApi = {
-  getLeaderboard: (params?: { schoolId?: string; district?: string; state?: string; country?: string; period?: 'month' | 'year' | 'all'; region?: string; regionId?: string; type?: string; page?: number; pageSize?: number }) =>
+  getLeaderboard: (params?: { schoolId?: string; district?: string; state?: string; country?: string; period?: 'month' | 'year' | 'all'; region?: string; regionId?: string; type?: string; startDate?: string; endDate?: string; page?: number; pageSize?: number }) =>
     request<any>(`/leaderboard${buildQueryString(params || {})}`),
 
-  getSchoolLeaderboard: (schoolId: string, params?: { period?: 'month' | 'year' | 'all' }) =>
+  getSchoolLeaderboard: (schoolId: string, params?: { period?: 'month' | 'year' | 'all'; startDate?: string; endDate?: string }) =>
     request<any[]>(`/leaderboard${buildQueryString({ schoolId, ...params })}`),
+
+  getMySchool: () =>
+    request<{ id: string; name: string; state: string; district: string; country: string }>('/leaderboard/my-school'),
 };
 
 export const statsApi = {
@@ -275,11 +290,14 @@ export const aiApi = {
 };
 
 export const adminApi = {
-  getDashboard: (params?: { dateRange?: string }) =>
+  getDashboard: (params?: { dateRange?: string; schoolId?: string }) =>
     request<any>(`/admin/dashboard${buildQueryString(params || {})}`),
 
-  getSchools: (params?: { page?: number; pageSize?: number; search?: string }) =>
+  getSchools: (params?: { page?: number; pageSize?: number; search?: string; country?: string; state?: string; district?: string }) =>
     request<PaginatedResponse<any>>(`/admin/schools${buildQueryString(params || {})}`),
+
+  getSchoolAnalytics: (schoolId: string, params?: { dateRange?: string }) =>
+    request<any>(`/admin/schools/${schoolId}/analytics${buildQueryString(params || {})}`),
 
   createSchool: (data: any) =>
     request<any>('/admin/schools', {
@@ -296,7 +314,10 @@ export const adminApi = {
   deleteSchool: (id: string) =>
     request<void>(`/admin/schools/${id}`, { method: 'DELETE' }),
 
-  getStudents: (params?: { page?: number; pageSize?: number; schoolId?: string; search?: string }) =>
+  hardDeleteSchool: (id: string) =>
+    request<void>(`/admin/schools/${id}/hard`, { method: 'DELETE' }),
+
+  getStudents: (params?: { page?: number; pageSize?: number; schoolId?: string; country?: string; state?: string; district?: string; search?: string }) =>
     request<PaginatedResponse<any>>(`/admin/students${buildQueryString(params || {})}`),
 
   getStudentById: (id: string) =>
@@ -349,11 +370,11 @@ export const adminApi = {
   deleteAdmin: (id: string) =>
     request<void>(`/admin/admins/${id}`, { method: 'DELETE' }),
 
-  getStatistics: (params?: { period?: string; schoolId?: string }) =>
+  getStatistics: (params?: { period?: string; country?: string; state?: string; district?: string; schoolId?: string }) =>
     request<any>(`/admin/statistics${buildQueryString(params || {})}`),
 
-  getLeaderboard: (params?: { schoolId?: string; period?: string; page?: number; pageSize?: number }) =>
-    request<PaginatedResponse<any>>(`/admin/leaderboard${buildQueryString(params || {})}`),
+  getLeaderboard: (params?: { schoolId?: string; country?: string; state?: string; district?: string; period?: string; startDate?: string; endDate?: string; type?: string; limit?: number }) =>
+    request<any[]>(`/leaderboard${buildQueryString(params || {})}`),
 
   updateAccount: (data: any) =>
     request<any>('/admin/account', {
@@ -385,14 +406,17 @@ export const adminApi = {
   deleteAccount: () =>
     request<void>('/admin/account', { method: 'DELETE' }),
 
-  switchRole: (role: string) =>
-    request<void>('/admin/switch-role', {
+  switchRole: (role: string, schoolId?: string) =>
+    request<any>('/admin/role-switch', {
       method: 'POST',
-      body: JSON.stringify({ role }),
+      body: JSON.stringify({ targetRole: role, schoolId }),
     }),
 
   deregisterStudent: (id: string) =>
     request<void>(`/admin/students/${id}`, { method: 'DELETE' }),
+
+  hardDeleteStudent: (id: string) =>
+    request<void>(`/admin/students/${id}/hard`, { method: 'DELETE' }),
 
   reregisterStudent: (id: string) =>
     request<void>(`/admin/students/${id}/reregister`, { method: 'POST' }),
@@ -447,7 +471,146 @@ export const adminApi = {
 
   search: (q: string, limit?: number) =>
     request<any>(`/admin/search${buildQueryString({ q, limit })}`),
+
+  getSystemConfig: () =>
+    request<any[]>('/admin/system-config'),
+
+  updateSystemConfig: (data: Record<string, string>) =>
+    request<any[]>('/admin/system-config', {
+      method: 'PUT',
+      body: JSON.stringify({ configs: data }),
+    }),
+
+  // Location hierarchy
+  getCountries: () =>
+    request<{ value: string; label: string }[]>('/admin/locations/countries'),
+
+  getStates: (country?: string) =>
+    request<{ value: string; label: string }[]>(`/admin/locations/states${buildQueryString(country ? { country } : {})}`),
+
+  getDistricts: (state?: string) =>
+    request<{ value: string; label: string }[]>(`/admin/locations/districts${buildQueryString(state ? { state } : {})}`),
+
+  getSchoolsByLocation: (params?: { country?: string; state?: string; district?: string }) =>
+    request<{ value: string; label: string }[]>(`/admin/locations/schools${buildQueryString(params || {})}`),
+
+  getWhitelist: (params?: { schoolId?: string; search?: string; page?: number; pageSize?: number; country?: string; state?: string; district?: string }) =>
+    request<any>(`/admin/ic-whitelist${buildQueryString(params || {})}`),
+
+  createWhitelist: (icNumber: string, schoolId: string) =>
+    request<any>('/admin/ic-whitelist', {
+      method: 'POST',
+      body: JSON.stringify({ icNumber, schoolId }),
+    }),
+
+  deleteWhitelist: (id: string) =>
+    request<void>(`/admin/ic-whitelist/${id}`, { method: 'DELETE' }),
+
+  uploadWhitelist: async (schoolId: string, file: File): Promise<{ total: number; inserted: number; skipped: number; schoolName: string }> => {
+    const token = getToken();
+    const formData = new FormData();
+    formData.append('file', file);
+    const res = await fetch(`${BASE_URL}/admin/schools/${schoolId}/upload-whitelist`, {
+      method: 'POST',
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      body: formData,
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || 'Upload failed');
+    }
+    const json = await res.json();
+    return json.data;
+  },
+
+  uploadWhitelistFile: async (file: File): Promise<{ total: number; inserted: number; skipped: number }> => {
+    const token = getToken();
+    const formData = new FormData();
+    formData.append('file', file);
+    const res = await fetch(`${BASE_URL}/admin/ic-whitelist/upload`, {
+      method: 'POST',
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      body: formData,
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || 'Upload failed');
+    }
+    const json = await res.json();
+    return json.data;
+  },
+
+  uploadFile: async (file: File): Promise<{ url: string }> => {
+    const token = getToken();
+    const formData = new FormData();
+    formData.append('file', file);
+    const res = await fetch('/api/upload', {
+      method: 'POST',
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      body: formData,
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || 'Upload failed');
+    }
+    const json = await res.json();
+    return json.data;
+  },
+
+  batchUpload: {
+    uploadZip: async (file: File): Promise<{ batchId: string; status: string }> => {
+      const token = getToken();
+      const formData = new FormData();
+      formData.append('file', file);
+      const res = await fetch(`${BASE_URL}/admin/batch/upload`, {
+        method: 'POST',
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        body: formData,
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || 'Upload failed');
+      }
+      const json = await res.json();
+      return json.data;
+    },
+
+    getStatus: (batchId: string) =>
+      request<any>(`/admin/batch/status/${batchId}`),
+
+    importBooks: (data: { batchId: string; books: any[] }) =>
+      request<{ imported: number; skipped: number }>('/admin/batch/import', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
+  },
+
+  // Operation logs
+  getLogs: (params?: { page?: number; pageSize?: number; userId?: string; action?: string; resource?: string; method?: string; path?: string; responseStatus?: number; search?: string; startDate?: string; endDate?: string }) =>
+    request<any>(`/admin/logs${buildQueryString(params || {})}`),
+
+  getLogStats: () =>
+    request<any>('/admin/logs/stats'),
+
+  exportLogs: (params?: { startDate?: string; endDate?: string; action?: string; resource?: string; method?: string; search?: string; format?: 'json' | 'csv' }) =>
+    request<any>(`/admin/logs/export${buildQueryString(params || {})}`),
+
+  getLogActions: () =>
+    request<string[]>('/admin/logs/actions'),
+
+  cleanupLogs: (retentionDays: number) =>
+    request<any>('/admin/logs/cleanup', {
+      method: 'POST',
+      body: JSON.stringify({ retentionDays }),
+    }),
 };
+
+export async function getPublicConfig(): Promise<Record<string, string>> {
+  const res = await fetch('/api/public/config');
+  if (!res.ok) return {};
+  const json = await res.json();
+  return json.data || {};
+}
 
 export const userApi = {
   getProfile: () =>
@@ -458,6 +621,23 @@ export const userApi = {
       method: 'PUT',
       body: JSON.stringify(data),
     }),
+
+  uploadAvatar: async (file: File): Promise<{ avatar: string }> => {
+    const token = getToken();
+    const formData = new FormData();
+    formData.append('avatar', file);
+    const res = await fetch('/api/auth/avatar', {
+      method: 'POST',
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      body: formData,
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || 'Upload failed');
+    }
+    const json = await res.json();
+    return json.data;
+  },
 
   changePassword: (data: { currentPassword: string; newPassword: string }) =>
     request<void>('/auth/password', {

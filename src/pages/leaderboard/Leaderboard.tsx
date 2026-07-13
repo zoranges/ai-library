@@ -1,10 +1,12 @@
-import { useEffect, useState } from 'react';
-import { Star, BookOpen, Clock, Crown } from 'lucide-react';
+import { useEffect, useState, useMemo, useCallback } from 'react';
+import { Star, BookOpen, Clock, Crown, School, MapPin } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import Tabs from '@/components/ui/Tabs';
 import Select from '@/components/ui/Select';
+import DateRangePicker from '@/components/ui/DateRangePicker';
 import { leaderboardApi } from '@/utils/api';
 import { useAuthStore } from '@/stores/authStore';
+import { getAllStates, getDistrictsByState } from '@/data/malaysiaLocations';
 import type { LeaderboardEntry } from '@/types';
 
 function getInitials(name: string) {
@@ -17,19 +19,92 @@ function getScoreValue(entry: LeaderboardEntry, metric: string) {
   return entry.points;
 }
 
+interface Option {
+  value: string;
+  label: string;
+}
+
+async function fetchSchools(state: string): Promise<Option[]> {
+  const token = localStorage.getItem('auth_token');
+  const params = new URLSearchParams();
+  params.set('country', 'Malaysia');
+  if (state) params.set('state', state);
+  const res = await fetch(`/api/admin/locations/schools?${params.toString()}`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
+  if (!res.ok) return [];
+  const json = await res.json();
+  return (json.data || []).map((d: any) => ({ value: d.value, label: d.label }));
+}
+
+type RegionView = 'school' | 'state';
+
 export default function Leaderboard() {
   const { t } = useTranslation();
   const { user } = useAuthStore();
-  const [period, setPeriod] = useState('month');
-  const [region, setRegion] = useState('school');
+  const isAdmin = user?.role === 'admin' || user?.role === 'super_admin';
+  const isSuperAdmin = user?.role === 'super_admin';
+
+  // Admin-only filter state
+  const [selectedCountry] = useState('Malaysia');
+  const [selectedState, setSelectedState] = useState('');
+  const [selectedDistrict, setSelectedDistrict] = useState('');
+  const [selectedSchoolId, setSelectedSchoolId] = useState('');
+  const [schools, setSchools] = useState<Option[]>([]);
+  const [schoolsLoading, setSchoolsLoading] = useState(false);
+
+  // Student region toggle
+  const [studentView, setStudentView] = useState<RegionView>('school');
+  const [mySchoolState, setMySchoolState] = useState('');
+
   const [metric, setMetric] = useState('points');
+  const [startDate, setStartDate] = useState<string | null>(null);
+  const [endDate, setEndDate] = useState<string | null>(null);
   const [entries, setEntries] = useState<LeaderboardEntry[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  const PERIOD_TABS = [
-    { key: 'month', label: t('leaderboard.month') },
-    { key: 'year', label: t('leaderboard.year') },
-  ];
+  const allStates = getAllStates();
+
+  const countryOptions = useMemo(() => [
+    { value: 'Malaysia', label: 'Malaysia' },
+  ], []);
+
+  const stateOptions = useMemo(() => [
+    { value: '', label: t('admin.allStates') },
+    ...allStates.map((s) => ({ value: s.value, label: s.label })),
+  ], [t, allStates]);
+
+  const districtOptions = useMemo(() => [
+    { value: '', label: t('admin.allDistricts') },
+    ...getDistrictsByState(selectedState).map((d) => ({ value: d.value, label: d.label })),
+  ], [t, selectedState]);
+
+  const schoolOptions = useMemo(() => [
+    { value: '', label: t('admin.allSchools') },
+    ...schools,
+  ], [t, schools]);
+
+  // Fetch student's school state on mount
+  useEffect(() => {
+    if (!isAdmin) {
+      leaderboardApi.getMySchool().then(res => {
+        if (res.data?.state) {
+          setMySchoolState(res.data.state);
+        }
+      }).catch(() => {});
+    }
+  }, [isAdmin]);
+
+  // Fetch schools when state/district changes (admin only)
+  useEffect(() => {
+    setSchools([]);
+    setSelectedSchoolId('');
+    if (!selectedState || !isAdmin) return;
+    setSchoolsLoading(true);
+    fetchSchools(selectedState)
+      .then(setSchools)
+      .finally(() => setSchoolsLoading(false));
+  }, [selectedState, selectedDistrict, isAdmin]);
 
   const METRIC_TABS = [
     { key: 'points', label: t('leaderboard.points'), icon: <Star className="w-3.5 h-3.5" strokeWidth={1.5} /> },
@@ -37,23 +112,39 @@ export default function Leaderboard() {
     { key: 'readingTime', label: t('profile.totalMinutes'), icon: <Clock className="w-3.5 h-3.5" strokeWidth={1.5} /> },
   ];
 
-  const REGION_OPTIONS = [
-    { value: 'school', label: t('leaderboard.schoolRegion') },
-    { value: 'district', label: t('leaderboard.districtRegion') },
-    { value: 'state', label: t('leaderboard.stateRegion') },
-    { value: 'country', label: t('leaderboard.countryRegion') },
+  const REGION_TABS = [
+    { key: 'school', label: t('leaderboard.schoolRegion'), icon: <School className="w-3.5 h-3.5" strokeWidth={1.5} /> },
+    { key: 'state', label: t('leaderboard.stateRegion'), icon: <MapPin className="w-3.5 h-3.5" strokeWidth={1.5} /> },
   ];
 
   useEffect(() => {
     async function fetch() {
       setIsLoading(true);
       try {
-        const res = await leaderboardApi.getLeaderboard({
-          period: period as any,
+        const params: Record<string, any> = {
           type: metric,
-          region: region,
-          pageSize: 50,
-        });
+          startDate: startDate || undefined,
+          endDate: endDate || undefined,
+        };
+
+        if (isAdmin) {
+          // Admin: use cascading filter selection
+          if (selectedSchoolId) {
+            params.schoolId = selectedSchoolId;
+          } else if (selectedDistrict) {
+            params.district = selectedDistrict;
+          } else if (selectedState) {
+            params.state = selectedState;
+          }
+        } else {
+          // Student: only school or own state
+          if (studentView === 'state' && mySchoolState) {
+            params.state = mySchoolState;
+          }
+          // For 'school' view, backend already restricts to their own school
+        }
+
+        const res = await leaderboardApi.getLeaderboard(params);
         const rawData = res.data;
         if (Array.isArray(rawData)) {
           setEntries(rawData as any);
@@ -69,7 +160,7 @@ export default function Leaderboard() {
       }
     }
     fetch();
-  }, [period, region]);
+  }, [startDate, endDate, metric, selectedState, selectedSchoolId, studentView, mySchoolState, isAdmin]);
 
   const top3 = entries.slice(0, 3);
   const rest = entries.slice(3);
@@ -83,8 +174,51 @@ export default function Leaderboard() {
       </div>
 
       <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 mb-6">
-        <Tabs tabs={PERIOD_TABS} activeKey={period} onChange={setPeriod} variant="pill" size="sm" />
-        <Select options={REGION_OPTIONS} value={region} onChange={setRegion} fullWidth={false} className="w-32" />
+        <DateRangePicker startDate={startDate} endDate={endDate} onChange={(s, e) => { setStartDate(s); setEndDate(e); }} />
+
+        {isAdmin ? (
+          /* Admin: full cascading location filter */
+          <div className="flex items-center gap-2">
+            <div className="w-28">
+              <Select options={countryOptions} value={selectedCountry} onChange={() => {}} />
+            </div>
+            <div className="w-36">
+              <Select
+                options={stateOptions}
+                value={selectedState}
+                onChange={(v) => { setSelectedState(v); setSelectedDistrict(''); }}
+              />
+            </div>
+            <div className="w-36">
+              <Select
+                options={districtOptions}
+                value={selectedDistrict}
+                onChange={(v) => { setSelectedDistrict(v); }}
+                disabled={!selectedState}
+              />
+            </div>
+            <div className="w-40">
+              <Select
+                options={schoolOptions}
+                value={selectedSchoolId}
+                onChange={setSelectedSchoolId}
+                placeholder={schoolsLoading ? t('common.loading') : t('admin.searchSchools')}
+              />
+            </div>
+          </div>
+        ) : (
+          /* Student: only My School / My State toggle */
+          <div className="sm:ml-2">
+            <Tabs
+              tabs={REGION_TABS}
+              activeKey={studentView}
+              onChange={(k) => setStudentView(k as RegionView)}
+              variant="pill"
+              size="sm"
+            />
+          </div>
+        )}
+
         <div className="sm:ml-auto">
           <Tabs tabs={METRIC_TABS} activeKey={metric} onChange={setMetric} variant="pill" size="sm" />
         </div>
@@ -103,8 +237,6 @@ export default function Leaderboard() {
                 if (!entry) return null;
                 const rank = idx + 1;
                 const isFirst = rank === 1;
-                const medals = ['', 'gold', 'silver', 'bronze'];
-                const crownColors = ['', 'text-amber-400', 'text-slate-400', 'text-amber-600'];
                 return (
                   <div
                     key={entry.userId}
@@ -126,7 +258,7 @@ export default function Leaderboard() {
                         {rank}
                       </div>
                       {isFirst && (
-                        <Crown className={`w-5 h-5 ${crownColors[rank]} absolute -top-7 left-1/2 -translate-x-1/2`} strokeWidth={1.5} />
+                        <Crown className="w-5 h-5 text-amber-400 absolute -top-7 left-1/2 -translate-x-1/2" strokeWidth={1.5} />
                       )}
                     </div>
                     <div className={`mt-3 text-center ${isFirst ? 'mt-4' : 'mt-2'}`}>

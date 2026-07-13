@@ -18,7 +18,7 @@ interface ReadingState {
   startSession: (bookId: string) => void;
   endSession: (bookId: string, startPage: number, endPage: number) => Promise<void>;
   fetchHighlights: (bookId: string) => Promise<void>;
-  addHighlight: (data: { bookId: string; text: string; color: string; page: number; note?: string }) => Promise<void>;
+  addHighlight: (data: { bookId: string; text: string; color: string; page: number; note?: string; startOffset?: number }) => Promise<void>;
   clearCurrent: () => void;
 }
 
@@ -89,7 +89,7 @@ export const useReadingStore = create<ReadingState>((set, get) => ({
     try {
       const res = await readingApi.addHighlight(data);
       set((state) => ({ highlights: [...state.highlights, res.data] }));
-    } catch { /* highlight save failure is non-blocking */ }
+    } catch (err: any) { console.error('addHighlight failed:', err?.message || err); }
   },
 
   clearCurrent: () => {

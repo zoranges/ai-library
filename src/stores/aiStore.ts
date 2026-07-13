@@ -51,7 +51,7 @@ export const useAiStore = create<AiState>((set, get) => ({
         role: 'assistant',
         content: data.content || data.message || '',
         timestamp: data.timestamp || new Date().toISOString(),
-        metadata: { bookId, page, type: 'chat' },
+        metadata: { bookId, page, type: 'chat', books: data.metadata?.books },
       };
       set((state) => ({ messages: [...state.messages, assistantMessage], isLoading: false }));
     } catch (err: any) {

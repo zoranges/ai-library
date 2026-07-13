@@ -19,6 +19,11 @@ async function startServer() {
       console.log(`Server ready on port ${PORT}`);
     });
 
+    // Allow large file uploads to complete
+    server.timeout = 600_000; // 10 minutes
+    server.headersTimeout = 610_000;
+    server.keepAliveTimeout = 120_000;
+
     process.on('SIGTERM', () => {
       console.log('SIGTERM signal received');
       server.close(() => {

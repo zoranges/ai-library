@@ -39,7 +39,7 @@ export default function ForgotPassword() {
           {isSent ? (
             <div className="text-center animate-fade-in">
               <div className="inline-flex items-center justify-center w-14 h-14 bg-success/10 rounded-full mb-4">
-                <Mail className="w-8 h-8 text-success" strokeWidth={1.5} />
+                <Check className="w-8 h-8 text-success" strokeWidth={1.5} />
               </div>
               <h2 className="text-lg font-bold text-text-primary font-heading">{t('auth.checkYourEmail')}</h2>
               <p className="text-[13px] text-text-tertiary mt-2 mb-6 leading-relaxed">
@@ -68,7 +68,7 @@ export default function ForgotPassword() {
               <form onSubmit={handleSubmit} className="space-y-5">
                 <Input
                   label={t('auth.emailAddress')}
-                  type="email"
+                  type="text"
                   placeholder={t('auth.emailPlaceholder')}
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}

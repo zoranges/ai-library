@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { BookOpen, Mail, Lock, Shield, Info, ArrowLeft } from 'lucide-react';
@@ -6,6 +6,7 @@ import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
 import { cn } from '@/lib/utils';
 import { useAuthStore } from '@/stores/authStore';
+import { getPublicConfig } from '@/utils/api';
 
 export default function AdminLogin() {
   const { t } = useTranslation();
@@ -16,6 +17,13 @@ export default function AdminLogin() {
   const [password, setPassword] = useState('');
   const [ipBinding, setIpBinding] = useState(false);
   const [error, setError] = useState('');
+  const [bgImage, setBgImage] = useState('/首页拿督新.png');
+
+  useEffect(() => {
+    getPublicConfig().then((cfg) => {
+      if (cfg.admin_login_page_image) setBgImage(cfg.admin_login_page_image);
+    }).catch(() => {});
+  }, []);
 
   const roles = [
     { value: 'super_admin', label: t('admin.superAdmin') },
@@ -155,7 +163,7 @@ export default function AdminLogin() {
       {/* Right: Dato */}
       <div
         className="hidden lg:block lg:w-3/5 bg-contain bg-no-repeat bg-center"
-        style={{ backgroundImage: 'url(/首页拿督新.png)' }}
+        style={{ backgroundImage: `url(${bgImage})` }}
       />
     </div>
   );

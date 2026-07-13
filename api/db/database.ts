@@ -58,7 +58,9 @@ export async function initDatabase(): Promise<void> {
         id VARCHAR(36) PRIMARY KEY,
         username VARCHAR(255) NOT NULL,
         email VARCHAR(255) NOT NULL UNIQUE,
-        password VARCHAR(255) NOT NULL,
+        password VARCHAR(255) NULL,
+        googleId VARCHAR(255) NULL UNIQUE,
+        googleAvatar TEXT NULL,
         avatar TEXT,
         schoolId VARCHAR(36) NOT NULL,
         grade VARCHAR(50),
@@ -66,6 +68,7 @@ export async function initDatabase(): Promise<void> {
         points INT DEFAULT 0,
         level INT DEFAULT 1,
         icNumber VARCHAR(50),
+        status VARCHAR(20) NOT NULL DEFAULT 'active',
         preferredLanguage VARCHAR(10) DEFAULT 'en',
         phone VARCHAR(50),
         guardianName VARCHAR(255),
@@ -106,6 +109,18 @@ export async function initDatabase(): Promise<void> {
 
     await conn.execute(`
       CREATE TABLE IF NOT EXISTS ai_config (
+        id VARCHAR(36) PRIMARY KEY,
+        configKey VARCHAR(100) NOT NULL UNIQUE,
+        configValue TEXT NOT NULL,
+        description VARCHAR(500),
+        updatedAt DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        updatedBy VARCHAR(36),
+        FOREIGN KEY (updatedBy) REFERENCES users(id)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    `);
+
+    await conn.execute(`
+      CREATE TABLE IF NOT EXISTS system_config (
         id VARCHAR(36) PRIMARY KEY,
         configKey VARCHAR(100) NOT NULL UNIQUE,
         configValue TEXT NOT NULL,
@@ -217,6 +232,11 @@ export async function initDatabase(): Promise<void> {
         FOREIGN KEY (bookId) REFERENCES books(id)
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
     `);
+
+    // Migration: add start_offset column for precise highlight positioning
+    try {
+      await conn.execute(`ALTER TABLE highlights ADD COLUMN start_offset INT DEFAULT NULL`);
+    } catch { /* column may already exist */ }
 
     await conn.execute(`
       CREATE TABLE IF NOT EXISTS notes (
@@ -350,12 +370,56 @@ export async function initDatabase(): Promise<void> {
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
     `);
 
+    await conn.execute(`
+      CREATE TABLE IF NOT EXISTS operation_logs (
+        id VARCHAR(36) PRIMARY KEY,
+        userId VARCHAR(36),
+        username VARCHAR(255),
+        userRole VARCHAR(50),
+        schoolId VARCHAR(36),
+        action VARCHAR(100) NOT NULL,
+        resource VARCHAR(100),
+        resourceId VARCHAR(36),
+        method VARCHAR(10),
+        path VARCHAR(500),
+        requestBody JSON,
+        responseStatus INT,
+        ipAddress VARCHAR(50),
+        userAgent VARCHAR(500),
+        duration INT,
+        details TEXT,
+        createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+        INDEX idx_ol_userId (userId),
+        INDEX idx_ol_action (action),
+        INDEX idx_ol_resource (resource),
+        INDEX idx_ol_createdAt (createdAt),
+        INDEX idx_ol_responseStatus (responseStatus)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    `);
+
+    await migrateExistingTables(conn);
     await seedData(conn);
     initialized = true;
     console.log('Database initialized successfully');
   } finally {
     conn.release();
   }
+}
+
+async function migrateExistingTables(conn: PoolConnection) {
+  // Add googleId, googleAvatar columns for Google OAuth support
+  try {
+    await conn.execute('ALTER TABLE users ADD COLUMN googleId VARCHAR(255) NULL UNIQUE');
+  } catch { /* column already exists */ }
+  try {
+    await conn.execute('ALTER TABLE users ADD COLUMN googleAvatar TEXT NULL');
+  } catch { /* column already exists */ }
+  try {
+    await conn.execute("ALTER TABLE users MODIFY password VARCHAR(255) NULL");
+  } catch { /* already nullable */ }
+  try {
+    await conn.execute("ALTER TABLE users ADD COLUMN status VARCHAR(20) NOT NULL DEFAULT 'active'");
+  } catch { /* column already exists */ }
 }
 
 async function seedData(conn: PoolConnection) {
@@ -395,28 +459,45 @@ async function seedData(conn: PoolConnection) {
   // Seed default AI config
   await conn.execute(
     `INSERT INTO ai_config (id, configKey, configValue, description) VALUES
-     ('ai-config-001', 'model', 'qwen-plus', 'AI model used for chat/completion'),
+     ('ai-config-001', 'model', 'deepseek-chat', 'AI model used for chat/completion'),
      ('ai-config-002', 'temperature', '0.7', 'Response creativity (0-1)'),
      ('ai-config-003', 'max_tokens', '2000', 'Maximum response length'),
      ('ai-config-004', 'system_prompt_zh', '你是一个儿童友好的AI阅读助手，请使用简单易懂的中文回答，适合小学生理解。', 'System prompt for Chinese'),
      ('ai-config-005', 'system_prompt_en', 'You are a child-friendly AI reading assistant. Use simple, easy-to-understand English suitable for primary school students.', 'System prompt for English'),
      ('ai-config-006', 'system_prompt_ms', 'Anda adalah pembantu membaca AI yang mesra kanak-kanak. Gunakan bahasa Melayu yang mudah difahami.', 'System prompt for Malay'),
-     ('ai-config-007', 'default_language', 'zh', 'Default AI response language')`
+     ('ai-config-007', 'default_language', 'zh', 'Default AI response language'),
+     ('ai-config-008', 'ains_url', 'https://delima.moe-dl.edu.my', 'Delima AINS platform URL for reading report integration')`
+  );
+
+  // Seed default system config
+  await conn.execute(
+    `INSERT INTO system_config (id, configKey, configValue, description) VALUES
+     ('sys-config-001', 'login_page_image', '/普通用户登录.jpg', '普通用户登录页背景图'),
+     ('sys-config-002', 'register_page_image', '/首页拿督新.png', '注册用户登录页背景图'),
+     ('sys-config-003', 'admin_login_page_image', '/首页拿督新.png', '管理员登录页背景图'),
+     ('sys-config-004', 'splash_page_image', '/启动页的拿督.png', '启动页背景图')`
   );
 
   // Seed default achievements
   await conn.execute(
-    `INSERT INTO achievements (id, name, description, icon, category, \`condition\`, points, rarity) VALUES
+    `INSERT IGNORE INTO achievements (id, name, description, icon, category, \`condition\`, points, rarity) VALUES
      ('ach-001', 'First Book', 'Complete reading your first book', '📖', 'reading', 'complete-1-book', 10, 'common'),
-     ('ach-002', 'Bookworm', 'Complete reading 10 books', '📚', 'reading', 'complete-10-books', 50, 'rare'),
-     ('ach-003', 'Marathon Reader', 'Read for 10 hours total', '⏱️', 'reading', 'read-600-minutes', 30, 'rare'),
-     ('ach-004', 'Quiz Master', 'Score 100% on a quiz', '🏆', 'quiz', 'quiz-perfect-score', 20, 'epic'),
-     ('ach-005', 'Streak 7', 'Read for 7 consecutive days', '🔥', 'streak', 'streak-7-days', 25, 'rare')`
+     ('ach-002', 'Book Collector', 'Complete reading 5 books', '📚', 'reading', 'complete-5-books', 25, 'common'),
+     ('ach-003', 'Bibliophile', 'Complete reading 10 books', '📚', 'reading', 'complete-10-books', 50, 'rare'),
+     ('ach-004', 'Library Master', 'Complete reading 25 books', '🏛️', 'reading', 'complete-25-books', 100, 'epic'),
+     ('ach-005', 'Grand Scholar', 'Complete reading 50 books', '🎓', 'reading', 'complete-50-books', 200, 'legendary'),
+     ('ach-006', 'Getting Started', 'Read for 100 minutes total', '⏱️', 'reading', 'read-100-minutes', 10, 'common'),
+     ('ach-007', 'Marathon Reader', 'Read for 600 minutes total', '🏃', 'reading', 'read-600-minutes', 30, 'rare'),
+     ('ach-008', 'Dedicated Reader', 'Read for 3000 minutes total', '💪', 'reading', 'read-3000-minutes', 100, 'epic'),
+     ('ach-009', 'Quiz Master', 'Score 100% on a quiz', '🏆', 'quiz', 'quiz-perfect-score', 20, 'epic'),
+     ('ach-010', 'Warming Up', 'Read for 3 consecutive days', '🔥', 'streak', 'streak-3-days', 10, 'common'),
+     ('ach-011', 'On Fire', 'Read for 7 consecutive days', '🔥', 'streak', 'streak-7-days', 25, 'rare'),
+     ('ach-012', 'Unstoppable', 'Read for 30 consecutive days', '⚡', 'streak', 'streak-30-days', 100, 'epic')`
   );
 
   // Seed default badges
   await conn.execute(
-    `INSERT INTO badges (id, name, description, icon, category, rarity) VALUES
+    `INSERT IGNORE INTO badges (id, name, description, icon, category, rarity) VALUES
      ('badge-001', 'Book Worm', 'An avid reader who loves books', '🐛', 'reading', 'common'),
      ('badge-002', 'Long Reader', 'Spent many hours reading', '⏳', 'reading', 'rare'),
      ('badge-003', 'Active Reader', 'Reads every day consistently', '⚡', 'reading', 'epic')`

@@ -1,6 +1,7 @@
 import { Router, type Request, type Response } from 'express';
 import { queryAll, queryOne, run, safeJsonParse } from '../db/database.js';
 import { verifyToken } from '../middleware/auth.js';
+import { resolveBookListUrls, resolveBookUrls } from '../services/storage/index.js';
 
 const router = Router();
 
@@ -18,7 +19,7 @@ router.get('/', verifyToken, async (req: Request, res: Response): Promise<void> 
     } = req.query;
 
     const pageNum = Math.max(1, parseInt(page as string));
-    const pageSizeNum = Math.min(50, Math.max(1, parseInt(pageSize as string)));
+    const pageSizeNum = Math.min(200, Math.max(1, parseInt(pageSize as string)));
     const offset = (pageNum - 1) * pageSizeNum;
 
     let whereClause = 'WHERE b.isActive = 1';
@@ -73,10 +74,12 @@ router.get('/', verifyToken, async (req: Request, res: Response): Promise<void> 
       } : null,
     }));
 
+    const resolvedBooks = await resolveBookListUrls(formattedBooks as any[]);
+
     res.json({
       success: true,
       data: {
-        data: formattedBooks,
+        data: resolvedBooks,
         total,
         page: pageNum,
         pageSize: pageSizeNum,
@@ -133,7 +136,8 @@ router.get('/:id', verifyToken, async (req: Request, res: Response): Promise<voi
       } : null,
     };
 
-    res.json({ success: true, data: formattedBook });
+    const resolvedBook = await resolveBookUrls(formattedBook as any);
+    res.json({ success: true, data: resolvedBook });
   } catch (error) {
     res.status(500).json({ success: false, error: 'Failed to fetch book' });
   }
@@ -210,7 +214,8 @@ router.get('/:id/recommendations', verifyToken, async (req: Request, res: Respon
       } : null,
     }));
 
-    res.json({ success: true, data: formatted });
+    const resolved = await resolveBookListUrls(formatted as any[]);
+    res.json({ success: true, data: resolved });
   } catch (error) {
     res.status(500).json({ success: false, error: 'Failed to fetch recommendations' });
   }

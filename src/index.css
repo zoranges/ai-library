@@ -355,6 +355,10 @@ code, pre, .font-mono {
   white-space: pre;
   cursor: text;
   transform-origin: 0% 0%;
+  line-height: 1;
+  pointer-events: auto;
+  user-select: text;
+  -webkit-user-select: text;
 }
 
 .pdf-text-layer > :not(.markedContent),
@@ -369,6 +373,7 @@ code, pre, .font-mono {
 
 .pdf-text-layer ::selection {
   background: rgba(0, 0, 255, 0.25);
+  color: transparent;
 }
 
 .pdf-text-layer br::selection {
@@ -389,3 +394,4 @@ code, pre, .font-mono {
 .pdf-text-layer .endOfContent.active {
   top: 0;
 }
+

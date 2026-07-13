@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Lock, Trash2, Camera, Pencil, Check, X, Monitor, Loader2 } from 'lucide-react';
 import Card from '@/components/ui/Card';
@@ -20,7 +20,7 @@ function EditableField({ label, value, onSave, type = 'text' }: { label: string;
     <div className="flex items-center justify-between gap-4 py-2.5 border-b border-border last:border-0">
       <div className="flex-1 min-w-0">
         <p className="text-[12px] text-text-tertiary mb-0.5">{label}</p>
-        {editing ? <Input value={draft} onChange={(e) => setDraft(e.target.value)} type={type} /> : <p className="text-[14px] text-text-primary">{value}</p>}
+        {editing ? <Input value={draft} onChange={(e) => setDraft(e.target.value)} type={type} /> : <p className="text-[14px] text-text-primary truncate">{value}</p>}
       </div>
       {editing ? (
         <div className="flex items-center gap-1 shrink-0">
@@ -110,29 +110,48 @@ export default function AccountCenter() {
     setDeleteModal(false);
   }
 
+  const profileRef = useRef<HTMLButtonElement>(null);
+  const securityRef = useRef<HTMLButtonElement>(null);
+  const [indicatorStyle, setIndicatorStyle] = useState({ left: 0, width: 0 });
+
+  const updateIndicator = useCallback(() => {
+    const ref = tab === 'profile' ? profileRef : securityRef;
+    if (ref.current) {
+      const { offsetLeft, offsetWidth } = ref.current;
+      setIndicatorStyle({ left: offsetLeft, width: offsetWidth });
+    }
+  }, [tab]);
+
+  useEffect(() => { updateIndicator(); }, [updateIndicator]);
+
   const tabItems = [
-    { key: 'profile', label: t('admin.profile') },
-    { key: 'security', label: t('admin.security') },
+    { key: 'profile', label: t('admin.profile'), ref: profileRef },
+    { key: 'security', label: t('admin.security'), ref: securityRef },
   ];
 
   return (
     <div className="space-y-4">
-      <h2 className="text-lg font-extrabold text-text-primary font-heading">{t('admin.account')}</h2>
+      <h2 className="text-lg font-semibold text-text-primary font-heading">{t('admin.account')}</h2>
 
       <div className="relative flex border-b border-border">
         {tabItems.map((tItem) => (
-          <button key={tItem.key} className={cn('px-4 py-2 text-[13px] font-medium transition-colors duration-micro ease-out-quart', tab === tItem.key ? 'text-accent' : 'text-text-tertiary hover:text-text-secondary')} onClick={() => setTab(tItem.key)}>
+          <button
+            key={tItem.key}
+            ref={tItem.ref}
+            className={cn('px-4 py-2.5 text-[13px] font-medium transition-colors duration-micro ease-out-quart', tab === tItem.key ? 'text-accent' : 'text-text-tertiary hover:text-text-secondary')}
+            onClick={() => setTab(tItem.key)}
+          >
             {tItem.label}
           </button>
         ))}
-        <span className="absolute bottom-0 h-0.5 bg-accent rounded-full transition-all duration-standard ease-out-quart" style={{ left: tab === 'profile' ? '0px' : '64px', width: tab === 'profile' ? '48px' : '64px' }} />
+        <span className="absolute bottom-0 h-0.5 bg-accent rounded-full transition-all duration-standard ease-out-quart" style={{ left: indicatorStyle.left, width: indicatorStyle.width }} />
       </div>
 
       {tab === 'profile' && (
         <Card padding="lg">
-          <div className="max-w-lg space-y-5">
-            <div className="flex items-center gap-4">
-              <div className="relative">
+          <div className="max-w-xl space-y-6">
+            <div className="flex items-center gap-4 pb-5 border-b border-border">
+              <div className="relative shrink-0">
                 <div className="h-16 w-16 bg-gradient-to-br from-accent to-brand-600 rounded-full flex items-center justify-center text-white text-xl font-bold">
                   {avatarLoading ? <Loader2 className="h-5 w-5 animate-spin" strokeWidth={1.5} /> : (profile.name || 'A').charAt(0).toUpperCase()}
                 </div>
@@ -140,8 +159,8 @@ export default function AccountCenter() {
                   <Camera className="h-3 w-3" strokeWidth={1.5} />
                 </button>
               </div>
-              <div>
-                <p className="font-semibold text-text-primary">{profile.name}</p>
+              <div className="min-w-0">
+                <p className="font-semibold text-text-primary truncate">{profile.name}</p>
                 <p className="text-[13px] text-text-tertiary">{user?.role === 'super_admin' ? t('admin.superAdmin') : t('admin.schoolAdmin')}</p>
               </div>
             </div>
@@ -156,10 +175,10 @@ export default function AccountCenter() {
       )}
 
       {tab === 'security' && (
-        <div className="space-y-4 max-w-lg">
+        <div className="space-y-4 max-w-xl">
           <Card padding="lg">
             <h3 className="text-[14px] font-medium text-text-primary mb-4">{t('profile.changePassword')}</h3>
-            <div className="space-y-3">
+            <div className="space-y-3 max-w-sm">
               <Input label={t('profile.currentPassword')} type="password" value={passwords.current} onChange={(e) => setPasswords({ ...passwords, current: e.target.value })} icon={<Lock className="h-4 w-4" strokeWidth={1.5} />} />
               <Input label={t('profile.newPassword')} type="password" value={passwords.new} onChange={(e) => setPasswords({ ...passwords, new: e.target.value })} icon={<Lock className="h-4 w-4" strokeWidth={1.5} />} />
               <Input label={t('admin.confirmNewPassword')} type="password" value={passwords.confirm} onChange={(e) => setPasswords({ ...passwords, confirm: e.target.value })} icon={<Lock className="h-4 w-4" strokeWidth={1.5} />} />
@@ -169,12 +188,12 @@ export default function AccountCenter() {
           </Card>
 
           <Card padding="lg">
-            <div className="flex items-center justify-between">
-              <div>
+            <div className="flex items-center justify-between gap-4">
+              <div className="min-w-0">
                 <h3 className="text-[14px] font-medium text-text-primary">{t('admin.ipBinding')}</h3>
                 <p className="text-[12px] text-text-tertiary mt-0.5">{t('admin.ipBindingDesc')}</p>
               </div>
-              <button onClick={handleIpBindingToggle} className={cn('relative inline-flex h-5 w-9 items-center rounded-full transition-colors duration-micro ease-out-quart', ipBinding ? 'bg-accent' : 'bg-border')}>
+              <button onClick={handleIpBindingToggle} className={cn('relative inline-flex h-5 w-9 items-center rounded-full transition-colors duration-micro ease-out-quart shrink-0', ipBinding ? 'bg-accent' : 'bg-border')}>
                 <span className={cn('inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform duration-micro ease-out-quart shadow-1', ipBinding ? 'translate-x-4.5' : 'translate-x-1')} />
               </button>
             </div>
@@ -185,17 +204,17 @@ export default function AccountCenter() {
             {devicesLoading ? (
               <div className="flex items-center justify-center py-4"><Loader2 className="h-5 w-5 animate-spin text-accent" strokeWidth={1.5} /></div>
             ) : devices.length > 0 ? (
-              <div className="space-y-2">
+              <div className="space-y-1">
                 {devices.map((device) => (
-                  <div key={device.id} className="flex items-center justify-between py-2 border-b border-border last:border-0">
-                    <div className="flex items-center gap-2.5">
-                      <Monitor className="h-4 w-4 text-text-tertiary" strokeWidth={1.5} />
-                      <div>
-                        <p className="text-[13px] text-text-primary">{device.name}</p>
-                        <p className="text-[11px] text-text-tertiary">IP: {device.ip} · {device.lastActive ? new Date(device.lastActive).toLocaleString() : ''}</p>
+                  <div key={device.id} className="flex items-center justify-between gap-3 py-2.5 border-b border-border last:border-0">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <Monitor className="h-4 w-4 text-text-tertiary shrink-0" strokeWidth={1.5} />
+                      <div className="min-w-0">
+                        <p className="text-[13px] text-text-primary truncate">{device.name}</p>
+                        <p className="text-[11px] text-text-tertiary truncate">IP: {device.ip} · {device.lastActive ? new Date(device.lastActive).toLocaleString() : ''}</p>
                       </div>
                     </div>
-                    {device.current ? <span className="text-[11px] text-success font-medium">{t('admin.currentDevice')}</span> : <Button size="sm" variant="ghost">{t('admin.revoke')}</Button>}
+                    {device.current ? <span className="text-[11px] text-success font-medium shrink-0">{t('admin.currentDevice')}</span> : <Button size="sm" variant="ghost" className="shrink-0">{t('admin.revoke')}</Button>}
                   </div>
                 ))}
               </div>
@@ -203,12 +222,12 @@ export default function AccountCenter() {
           </Card>
 
           <Card padding="lg" className="!border-error/20">
-            <div className="flex items-center justify-between">
-              <div>
+            <div className="flex items-center justify-between gap-4">
+              <div className="min-w-0">
                 <h3 className="text-[14px] font-medium text-error">{t('admin.deleteAccount')}</h3>
                 <p className="text-[12px] text-text-tertiary mt-0.5">{t('admin.deleteAccountDesc')}</p>
               </div>
-              <Button variant="danger" size="sm" icon={<Trash2 className="h-3.5 w-3.5" strokeWidth={1.5} />} onClick={() => setDeleteModal(true)}>{t('common.delete')}</Button>
+              <Button variant="danger" size="sm" icon={<Trash2 className="h-3.5 w-3.5" strokeWidth={1.5} />} onClick={() => setDeleteModal(true)} className="shrink-0">{t('common.delete')}</Button>
             </div>
           </Card>
 

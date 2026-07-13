@@ -3,7 +3,8 @@ import { Link, useLocation, Outlet, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import {
   LayoutDashboard, School, Users, BookOpen, BarChart3, Trophy,
-  UserCog, ArrowLeftRight, ChevronRight, Menu, X, LogOut, Bell, Zap, Search, BookOpen as BookIcon
+  UserCog, ArrowLeftRight, ChevronRight, Menu, X, LogOut, Bell, Zap, Search, BookOpen as BookIcon, Settings, FileCheck, Tags, Upload,
+  ChevronLeft, Home
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuthStore } from '@/stores/authStore';
@@ -17,9 +18,12 @@ interface SidebarItem {
   path: string;
 }
 
+const COLLAPSED_KEY = 'admin_sidebar_collapsed';
+
 export default function AdminLayout() {
   const { t } = useTranslation();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [collapsed, setCollapsed] = useState(() => localStorage.getItem(COLLAPSED_KEY) === 'true');
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<any>(null);
@@ -36,6 +40,11 @@ export default function AdminLayout() {
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
+
+
+  useEffect(() => {
+    localStorage.setItem(COLLAPSED_KEY, String(collapsed));
+  }, [collapsed]);
 
   async function doSearch(q: string) {
     setSearchQuery(q);
@@ -56,6 +65,8 @@ export default function AdminLayout() {
       { key: 'schools', label: t('admin.schools'), icon: <School className="h-[18px] w-[18px]" strokeWidth={1.5} />, path: '/admin/schools' },
       { key: 'students', label: t('admin.students'), icon: <Users className="h-[18px] w-[18px]" strokeWidth={1.5} />, path: '/admin/students' },
       { key: 'books', label: t('admin.books'), icon: <BookOpen className="h-[18px] w-[18px]" strokeWidth={1.5} />, path: '/admin/books' },
+      { key: 'categories', label: t('admin.bookCategories', '图书分类'), icon: <Tags className="h-[18px] w-[18px]" strokeWidth={1.5} />, path: '/admin/books/categories' },
+      { key: 'batch-upload', label: t('admin.batchUpload', '批量上传'), icon: <Upload className="h-[18px] w-[18px]" strokeWidth={1.5} />, path: '/admin/batch-upload' },
       { key: 'statistics', label: t('admin.statistics'), icon: <BarChart3 className="h-[18px] w-[18px]" strokeWidth={1.5} />, path: '/admin/statistics' },
       { key: 'leaderboard', label: t('admin.leaderboard'), icon: <Trophy className="h-[18px] w-[18px]" strokeWidth={1.5} />, path: '/admin/leaderboard' },
     ];
@@ -64,6 +75,8 @@ export default function AdminLayout() {
         { key: 'admins', label: t('admin.admins'), icon: <UserCog className="h-[18px] w-[18px]" strokeWidth={1.5} />, path: '/admin/admins' },
         { key: 'role-switch', label: t('admin.roleSwitch'), icon: <ArrowLeftRight className="h-[18px] w-[18px]" strokeWidth={1.5} />, path: '/admin/role-switch' },
         { key: 'ai-config', label: t('admin.aiConfig'), icon: <Zap className="h-[18px] w-[18px]" strokeWidth={1.5} />, path: '/admin/ai-config' },
+        { key: 'system-settings', label: t('admin.systemSettings', '系统设置'), icon: <Settings className="h-[18px] w-[18px]" strokeWidth={1.5} />, path: '/admin/system-settings' },
+        { key: 'ic-whitelist', label: t('admin.icWhitelist'), icon: <FileCheck className="h-[18px] w-[18px]" strokeWidth={1.5} />, path: '/admin/ic-whitelist' },
       );
     }
     return items;
@@ -104,7 +117,8 @@ export default function AdminLayout() {
   }
 
   return (
-    <div className="min-h-screen flex bg-bg-secondary">
+    <div className="flex bg-bg-secondary" style={{ minHeight: '100vh' }}>
+      {/* Mobile overlay */}
       {sidebarOpen && (
         <div
           className="fixed inset-0 z-30 bg-black/40 backdrop-blur-[2px] lg:hidden transition-opacity duration-standard ease-out-quart"
@@ -112,25 +126,37 @@ export default function AdminLayout() {
         />
       )}
 
+      {/* Sidebar — mobile: fixed overlay; desktop: sticky */}
       <aside
         className={cn(
-          'fixed inset-y-0 left-0 z-40 w-60 flex flex-col transition-transform duration-standard ease-out-quart lg:translate-x-0 lg:static',
-          sidebarOpen ? 'translate-x-0' : '-translate-x-full'
+          'flex flex-col transition-all duration-standard ease-out-quart shrink-0',
+          'fixed inset-y-0 left-0 z-40 lg:sticky lg:top-0 lg:z-auto lg:self-start',
+          collapsed ? 'w-14' : 'w-56',
+          sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
         )}
-        style={{ background: 'oklch(0.14 0.015 255)' }}
+        style={{ background: 'oklch(0.14 0.015 255)', height: '100vh' }}
       >
-        <div className="flex items-center gap-2.5 h-14 px-5 border-b border-white/[0.06] shrink-0">
-          <div className="h-7 w-7 bg-accent rounded-md flex items-center justify-center">
+        {/* Header */}
+        <div className={cn(
+          'flex items-center h-12 border-b border-white/[0.06] shrink-0',
+          collapsed ? 'justify-center px-1' : 'gap-2 px-4'
+        )}>
+          <div className="h-7 w-7 bg-accent rounded-md flex items-center justify-center shrink-0">
             <BookIcon className="h-4 w-4 text-white" strokeWidth={1.5} />
           </div>
-          <span className="text-[15px] font-semibold text-white font-heading tracking-tight">AI Library</span>
-          <span className="ml-1 px-1.5 py-0.5 text-[10px] font-medium bg-white/[0.08] text-white/60 rounded">{t('admin.adminPanel', 'Admin')}</span>
+          {!collapsed && (
+            <>
+              <span className="text-[15px] font-semibold text-white font-heading tracking-tight truncate">AI Library</span>
+              <span className="px-1.5 py-0.5 text-[10px] font-medium bg-white/[0.08] text-white/60 rounded shrink-0">{t('admin.adminPanel', 'Admin')}</span>
+            </>
+          )}
           <button onClick={() => setSidebarOpen(false)} className="lg:hidden ml-auto p-1 rounded-md text-white/40 hover:text-white/70 hover:bg-white/[0.06] transition-colors">
             <X className="h-4 w-4" strokeWidth={1.5} />
           </button>
         </div>
 
-        <nav className="flex-1 overflow-y-auto py-3 px-3">
+        {/* Nav items */}
+        <nav className="flex-1 overflow-y-auto py-2 px-2">
           <div className="space-y-0.5">
             {sidebarItems.map((item) => {
               const isActive = activeKey === item.key;
@@ -138,55 +164,87 @@ export default function AdminLayout() {
                 <Link
                   key={item.key}
                   to={item.path}
+                  title={collapsed ? item.label : undefined}
                   onClick={() => setSidebarOpen(false)}
                   className={cn(
-                    'relative flex items-center gap-2.5 px-3 py-2 text-[13px] font-medium rounded-md transition-all duration-micro ease-out-quart',
+                    'relative flex items-center rounded-md transition-all duration-micro ease-out-quart',
+                    collapsed ? 'justify-center w-9 h-9 mx-auto' : 'gap-2.5 px-3 py-1.5',
+                    'text-[14px] font-medium',
                     isActive
                       ? 'text-white bg-white/[0.08]'
                       : 'text-white/50 hover:text-white/80 hover:bg-white/[0.04]'
                   )}
                 >
-                  {isActive && (
+                  {!collapsed && isActive && (
                     <span className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-4 bg-accent rounded-r-full" />
                   )}
                   {item.icon}
-                  {item.label}
+                  {!collapsed && item.label}
                 </Link>
               );
             })}
           </div>
         </nav>
 
-        <div className="border-t border-white/[0.06] p-3 shrink-0">
+        {/* Back to frontend */}
+        <div className="border-t border-white/[0.06] p-1.5 shrink-0">
           <Link
             to="/"
-            className="flex items-center gap-2.5 px-3 py-2 text-[13px] font-medium text-white/40 hover:text-white/70 rounded-md hover:bg-white/[0.04] transition-colors"
+            title={collapsed ? (t('admin.backToFrontend', 'Back to Frontend')) : undefined}
+            className={cn(
+              'flex items-center rounded-md transition-colors text-white/40 hover:text-white/70 hover:bg-white/[0.04]',
+              collapsed ? 'justify-center w-9 h-9 mx-auto' : 'gap-2.5 px-3 py-1.5 text-[14px] font-medium'
+            )}
           >
-            <ArrowLeftRight className="h-[18px] w-[18px]" strokeWidth={1.5} />
-            {t('admin.backToFrontend', 'Back to Frontend')}
+            <Home className="h-[18px] w-[18px]" strokeWidth={1.5} />
+            {!collapsed && t('admin.backToFrontend', 'Back to Frontend')}
           </Link>
         </div>
 
-        <div className="border-t border-white/[0.06] p-4 shrink-0">
-          <div className="flex items-center gap-3">
-            <div className="h-8 w-8 rounded-full bg-white/[0.08] flex items-center justify-center text-white/60 text-xs font-medium">
+        {/* User profile */}
+        <div className="border-t border-white/[0.06] px-3 py-2.5 shrink-0">
+          <div className={cn('flex items-center', collapsed ? 'justify-center' : 'gap-2.5')}>
+            <div className="h-8 w-8 rounded-full bg-white/[0.08] flex items-center justify-center text-white/60 text-[11px] font-medium shrink-0">
               {user?.username?.charAt(0)?.toUpperCase() || 'A'}
             </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-[13px] font-medium text-white/80 truncate">{user?.username || t('admin.admins')}</p>
-              <p className="text-[11px] text-white/35">{user?.role === 'super_admin' ? t('admin.superAdmin') : t('admin.schoolAdmin')}</p>
-            </div>
+            {!collapsed && (
+              <>
+                <div className="flex-1 min-w-0">
+                  <p className="text-[13px] font-medium text-white/80 truncate">{user?.username || t('admin.admins')}</p>
+                  <p className="text-[11px] text-white/35">{user?.role === 'super_admin' ? t('admin.superAdmin') : t('admin.schoolAdmin')}</p>
+                </div>
+                <button
+                  onClick={handleLogout}
+                  className="p-1.5 rounded-md text-white/30 hover:text-white/60 hover:bg-white/[0.06] transition-colors"
+                  title={t('auth.logout')}
+                >
+                  <LogOut className="h-4 w-4" strokeWidth={1.5} />
+                </button>
+              </>
+            )}
+          </div>
+          {collapsed && (
             <button
               onClick={handleLogout}
-              className="p-1.5 rounded-md text-white/30 hover:text-white/60 hover:bg-white/[0.06] transition-colors"
+              className="mt-2 w-full flex items-center justify-center p-1.5 rounded-md text-white/30 hover:text-white/60 hover:bg-white/[0.06] transition-colors"
               title={t('auth.logout')}
             >
               <LogOut className="h-4 w-4" strokeWidth={1.5} />
             </button>
-          </div>
+          )}
         </div>
+
+        {/* Collapse toggle — desktop only */}
+        <button
+          onClick={() => setCollapsed((v: boolean) => !v)}
+          className="hidden lg:flex absolute -right-3 top-16 h-6 w-6 rounded-full bg-surface border border-border items-center justify-center text-text-tertiary hover:text-text-primary hover:border-accent/30 transition-colors shadow-sm"
+          title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+        >
+          <ChevronLeft className={cn('h-3 w-3 transition-transform duration-standard', collapsed && 'rotate-180')} strokeWidth={2} />
+        </button>
       </aside>
 
+      {/* Main content */}
       <div className="flex-1 flex flex-col min-w-0">
         <header className="sticky top-0 z-20 h-12 bg-bg-primary border-b border-border flex items-center justify-between px-4 lg:px-6 shrink-0">
           <div className="flex items-center gap-3">
@@ -271,9 +329,9 @@ export default function AdminLayout() {
             {/* Language switcher */}
             <LanguageSwitcher />
 
-            <button className="relative p-2 rounded-md text-text-tertiary hover:text-text-primary hover:bg-surface-raised transition-colors">
+            {/* Notifications — placeholder, no backend yet */}
+            <button className="relative p-2 rounded-md text-text-tertiary hover:text-text-primary hover:bg-surface-raised transition-colors opacity-50 pointer-events-none" disabled title={t('admin.notificationsComingSoon', 'Notifications coming soon')}>
               <Bell className="h-4 w-4" strokeWidth={1.5} />
-              <span className="absolute top-1.5 right-1.5 h-1.5 w-1.5 bg-error rounded-full" />
             </button>
             <div className="h-4 w-px bg-border mx-0.5" />
             <Link to="/admin/account" className="flex items-center gap-2 p-1 rounded-md hover:bg-surface-raised transition-colors">
@@ -284,7 +342,7 @@ export default function AdminLayout() {
           </div>
         </header>
 
-        <main className="flex-1 overflow-y-auto p-6">
+        <main className="flex-1 p-6">
           <Outlet />
         </main>
       </div>

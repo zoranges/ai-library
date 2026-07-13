@@ -10,11 +10,13 @@ import Splash from '@/pages/auth/Splash';
 import Login from '@/pages/auth/Login';
 import Register from '@/pages/auth/Register';
 import ForgotPassword from '@/pages/auth/ForgotPassword';
+import ResetPassword from '@/pages/auth/ResetPassword';
 import BookDetail from '@/pages/books/BookDetail';
 import Reader from '@/pages/reader/Reader';
 import AdminLogin from '@/pages/admin/AdminLogin';
 import Dashboard from '@/pages/admin/Dashboard';
 import SchoolManagement from '@/pages/admin/SchoolManagement';
+import SchoolDetail from '@/pages/admin/SchoolDetail';
 import StudentManagement from '@/pages/admin/StudentManagement';
 import BookManagement from '@/pages/admin/BookManagement';
 import AdminManagement from '@/pages/admin/AdminManagement';
@@ -31,6 +33,11 @@ import Notes from '@/pages/profile/Notes';
 import Achievements from '@/pages/profile/Achievements';
 import ReadingGrowth from '@/pages/profile/ReadingGrowth';
 import AIConfig from '@/pages/admin/AIConfig';
+import SystemSettings from '@/pages/admin/SystemSettings';
+import CategoryManagement from '@/pages/admin/CategoryManagement';
+import ICWhitelist from '@/pages/admin/ICWhitelist';
+import BatchUpload from '@/pages/admin/BatchUpload';
+import OperationLogs from '@/pages/admin/OperationLogs';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, user, fetchMe, token } = useAuthStore();
@@ -98,6 +105,7 @@ export default function App() {
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
+        <Route path="/reset-password" element={<ResetPassword />} />
 
         {/* Frontend pages — sidebar layout */}
         <Route element={<SidebarLayout />}>
@@ -122,6 +130,7 @@ export default function App() {
           <Route index element={<Dashboard />} />
           <Route path="admins" element={<AdminManagement />} />
           <Route path="schools" element={<SchoolManagement />} />
+          <Route path="schools/:id" element={<SchoolDetail />} />
           <Route path="students" element={<StudentManagement />} />
           <Route path="students/:id" element={<StudentManagement />} />
           <Route path="statistics" element={<Statistics />} />
@@ -129,9 +138,14 @@ export default function App() {
           <Route path="books" element={<BookManagement />} />
           <Route path="books/new" element={<BookManagement />} />
           <Route path="books/:id/edit" element={<BookManagement />} />
+          <Route path="books/categories" element={<CategoryManagement />} />
           <Route path="account" element={<AccountCenter />} />
           <Route path="role-switch" element={<RoleSwitch />} />
           <Route path="ai-config" element={<AIConfig />} />
+          <Route path="system-settings" element={<SystemSettings />} />
+          <Route path="ic-whitelist" element={<ICWhitelist />} />
+          <Route path="batch-upload" element={<BatchUpload />} />
+          <Route path="logs" element={<OperationLogs />} />
         </Route>
 
         <Route path="*" element={<Navigate to="/" replace />} />

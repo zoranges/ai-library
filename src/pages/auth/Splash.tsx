@@ -1,9 +1,18 @@
+import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { BookOpen, ArrowRight } from 'lucide-react';
+import { BookOpen } from 'lucide-react';
+import { getPublicConfig } from '@/utils/api';
 
 export default function Splash() {
   const { t } = useTranslation();
+  const [bgImage, setBgImage] = useState('/启动页的拿督.png');
+
+  useEffect(() => {
+    getPublicConfig().then((cfg) => {
+      if (cfg.splash_page_image) setBgImage(cfg.splash_page_image);
+    }).catch(() => {});
+  }, []);
 
   return (
     <div className="min-h-screen flex">
@@ -30,7 +39,6 @@ export default function Splash() {
             className="mt-10 inline-flex items-center gap-3 px-8 py-4 bg-accent text-white text-[16px] font-bold rounded-xl hover:bg-accent-hover shadow-lg shadow-accent/20 transition-all duration-200 hover:gap-4"
           >
             {t('auth.getStarted')}
-            <ArrowRight className="h-5 w-5" strokeWidth={2} />
           </Link>
         </div>
       </div>
@@ -38,7 +46,7 @@ export default function Splash() {
       {/* Right: Dato */}
       <div
         className="hidden lg:block lg:w-3/5 bg-cover bg-no-repeat bg-center"
-        style={{ backgroundImage: 'url(/启动页的拿督.png)' }}
+        style={{ backgroundImage: `url(${bgImage})` }}
       />
     </div>
   );

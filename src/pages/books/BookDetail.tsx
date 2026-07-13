@@ -7,7 +7,8 @@ import Badge from '@/components/ui/Badge';
 import BookCover from '@/components/BookCover';
 import { useBookStore } from '@/stores/bookStore';
 import { useReadingStore } from '@/stores/readingStore';
-import { favoriteApi } from '@/utils/api';
+import { bookApi, favoriteApi } from '@/utils/api';
+import type { Book } from '@/types';
 
 const LANG_DOT: Record<string, string> = {
   en: 'bg-blue-400',
@@ -20,10 +21,11 @@ export default function BookDetail() {
   const { t } = useTranslation();
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { currentBook: book, books, fetchBookById, fetchBooks } = useBookStore();
+  const { currentBook: book, fetchBookById } = useBookStore();
   const { currentProgress, fetchProgress } = useReadingStore();
   const [isFavorite, setIsFavorite] = useState(false);
   const [favLoading, setFavLoading] = useState(false);
+  const [relatedBooks, setRelatedBooks] = useState<Book[]>([]);
 
   useEffect(() => {
     if (id) {
@@ -35,12 +37,11 @@ export default function BookDetail() {
       }).catch(() => {
         setIsFavorite(false);
       });
+      bookApi.getRecommendations(id).then((res) => {
+        setRelatedBooks((res.data as Book[]) || []);
+      }).catch(() => {});
     }
   }, [id]);
-
-  useEffect(() => {
-    if (books.length === 0) fetchBooks();
-  }, []);
 
   async function toggleFavorite() {
     if (!id) return;
@@ -86,7 +87,6 @@ export default function BookDetail() {
 
   const diff = getDifficultyLabel(book.difficulty);
   const progressPct = currentProgress?.percentage ?? 0;
-  const relatedBooks = books.filter((b) => b.categoryId === book.categoryId && b.id !== book.id).slice(0, 6);
 
   return (
     <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-6">

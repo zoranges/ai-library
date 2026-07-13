@@ -28,6 +28,7 @@ function Card({ className, hover = false, padding = 'none', children, ...props }
     <div
       className={cn(
         'bg-surface rounded-lg border border-border shadow-1',
+        paddingStyles[padding],
         hover &&
           'transition-shadow duration-standard ease-out-quart hover:shadow-2 cursor-pointer',
         className

@@ -1,6 +1,6 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Plus, Search, Edit2, Trash2, X, Upload, Loader2 } from 'lucide-react';
+import { Plus, Search, Edit2, Trash2, X, Upload, Loader2, FileText, MoveHorizontal } from 'lucide-react';
 import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
@@ -50,8 +50,16 @@ export default function BookManagement() {
   const [language, setLanguage] = useState('');
   const [format, setFormat] = useState('');
 
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [moveTargetCategory, setMoveTargetCategory] = useState('');
+  const [moving, setMoving] = useState(false);
+
   const [panelOpen, setPanelOpen] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
+  const [bookFile, setBookFile] = useState<File | null>(null);
+  const [coverFile, setCoverFile] = useState<File | null>(null);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [form, setForm] = useState({
     title: '', author: '', isbn: '', publisher: '', description: '',
     categoryId: '', language: 'zh', fileType: 'pdf', coverUrl: '', fileUrl: '',
@@ -80,13 +88,14 @@ export default function BookManagement() {
     { value: 'advanced', label: t('books.advanced') },
   ];
 
-  const api = useCallback(async (url: string, options?: RequestInit) => {
+  const api = useCallback(async (url: string, options?: RequestInit & { isFormData?: boolean }) => {
+    const { isFormData, ...fetchOptions } = options || {};
     const res = await fetch(url, {
-      ...options,
+      ...fetchOptions,
       headers: {
-        'Content-Type': 'application/json',
+        ...(isFormData ? {} : { 'Content-Type': 'application/json' }),
         Authorization: `Bearer ${token}`,
-        ...options?.headers,
+        ...fetchOptions?.headers,
       },
     });
     if (!res.ok) {
@@ -96,16 +105,21 @@ export default function BookManagement() {
     return res.json();
   }, [token]);
 
-  const fetchBooks = useCallback(async () => {
+  const fetchBooks = useCallback(async (overrides?: { page?: number; search?: string; categoryId?: string; language?: string; format?: string }) => {
     setLoading(true);
     try {
+      const p = overrides?.page ?? page;
+      const s = overrides?.search ?? search;
+      const c = overrides?.categoryId ?? categoryId;
+      const l = overrides?.language ?? language;
+      const f = overrides?.format ?? format;
       const params = new URLSearchParams();
-      params.set('page', String(page));
+      params.set('page', String(p));
       params.set('pageSize', '20');
-      if (search) params.set('search', search);
-      if (categoryId) params.set('categoryId', categoryId);
-      if (language) params.set('language', language);
-      if (format) params.set('format', format);
+      if (s) params.set('search', s);
+      if (c) params.set('categoryId', c);
+      if (l) params.set('language', l);
+      if (f) params.set('format', f);
 
       const result = await api(`/api/admin/books?${params}`);
       setBooks(result.data.data);
@@ -130,6 +144,9 @@ export default function BookManagement() {
   function openAdd() {
     setEditId(null);
     setForm({ title: '', author: '', isbn: '', publisher: '', description: '', categoryId: categories[0]?.id || '', language: 'zh', fileType: 'pdf', coverUrl: '', fileUrl: '', difficulty: 'intermediate', pageCount: 0, copyright: '', publishDate: '' });
+    setBookFile(null);
+    setCoverFile(null);
+    setUploadProgress(0);
     setPanelOpen(true);
   }
 
@@ -147,19 +164,62 @@ export default function BookManagement() {
 
   async function handleSave() {
     if (!form.title.trim() || !form.author.trim() || !form.categoryId) return;
+    if (!editId && !bookFile) return;
     setSaving(true);
+    setUploadProgress(0);
     try {
       if (editId) {
         await api(`/api/admin/books/${editId}`, { method: 'PUT', body: JSON.stringify(form) });
       } else {
-        await api('/api/admin/books', { method: 'POST', body: JSON.stringify(form) });
+        const fd = new FormData();
+        fd.append('file', bookFile!);
+        if (coverFile) fd.append('cover', coverFile);
+        fd.append('title', form.title);
+        fd.append('author', form.author);
+        fd.append('isbn', form.isbn);
+        fd.append('publisher', form.publisher);
+        fd.append('description', form.description);
+        fd.append('categoryId', form.categoryId);
+        fd.append('language', form.language);
+        fd.append('difficulty', form.difficulty);
+        fd.append('pageCount', String(form.pageCount));
+        fd.append('copyright', form.copyright);
+        fd.append('publishDate', form.publishDate);
+
+        await new Promise<void>((resolve, reject) => {
+          const xhr = new XMLHttpRequest();
+          xhr.upload.onprogress = (e) => {
+            if (e.lengthComputable) setUploadProgress(Math.round((e.loaded / e.total) * 100));
+          };
+          xhr.onload = () => {
+            if (xhr.status >= 200 && xhr.status < 300) resolve();
+            else reject(new Error(JSON.parse(xhr.responseText)?.error || `Upload failed: ${xhr.status}`));
+          };
+          xhr.onerror = () => reject(new Error('Network error'));
+          xhr.open('POST', '/api/admin/books/upload');
+          xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+          xhr.send(fd);
+        });
       }
       setPanelOpen(false);
-      fetchBooks();
+      if (editId) {
+        // Edit: stay on current page with current filters
+        fetchBooks();
+      } else {
+        // New book: reset to page 1 so the new entry is visible
+        setSearch('');
+        setCategoryId('');
+        setLanguage('');
+        setFormat('');
+        setPage(1);
+        fetchBooks({ page: 1, search: '', categoryId: '', language: '', format: '' });
+      }
     } catch (err) {
       console.error('Failed to save book', err);
+      alert(err instanceof Error ? err.message : 'Failed to save book');
     } finally {
       setSaving(false);
+      setUploadProgress(0);
     }
   }
 
@@ -173,12 +233,78 @@ export default function BookManagement() {
     }
   }
 
+  async function handleBatchMove() {
+    if (selectedIds.size === 0 || !moveTargetCategory) return;
+    if (!confirm(`Move ${selectedIds.size} selected book(s) to the chosen category?`)) return;
+    setMoving(true);
+    try {
+      await api('/api/admin/books/batch-move', {
+        method: 'PUT',
+        body: JSON.stringify({ bookIds: [...selectedIds], categoryId: moveTargetCategory }),
+      });
+      setSelectedIds(new Set());
+      setMoveTargetCategory('');
+      fetchBooks();
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Failed to move books');
+    } finally {
+      setMoving(false);
+    }
+  }
+
+  const [coverUploading, setCoverUploading] = useState(false);
+
   function handleCoverUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => setForm((f) => ({ ...f, coverUrl: reader.result as string }));
-    reader.readAsDataURL(file);
+
+    // Add mode: bundle with book upload later
+    if (!editId) {
+      setCoverFile(file);
+      return;
+    }
+
+    // Edit mode: upload immediately
+    setCoverFile(file);
+    setCoverUploading(true);
+    const fd = new FormData();
+    fd.append('cover', file);
+    api(`/api/admin/books/${editId}/cover`, { method: 'PUT', body: fd, isFormData: true })
+      .then((res) => {
+        setForm((f) => ({ ...f, coverUrl: res.data.coverUrl }));
+        setCoverFile(null);
+      })
+      .catch((err) => {
+        console.error('Cover upload failed:', err);
+        alert('Cover upload failed: ' + (err instanceof Error ? err.message : 'Unknown error'));
+        setCoverFile(null);
+      })
+      .finally(() => setCoverUploading(false));
+  }
+
+  async function handleRemoveCover() {
+    if (!editId) { setCoverFile(null); return; }
+    if (!confirm('Remove the cover image?')) return;
+    try {
+      await api(`/api/admin/books/${editId}/cover`, { method: 'DELETE' });
+      setForm((f) => ({ ...f, coverUrl: '' }));
+      setCoverFile(null);
+    } catch (err) {
+      console.error('Failed to remove cover', err);
+    }
+  }
+
+  function handleBookFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setBookFile(file);
+    const ext = file.name.split('.').pop()?.toLowerCase() || 'pdf';
+    setForm((f) => ({ ...f, fileType: ext, fileUrl: '' }));
+    // Auto-fill title from filename if empty
+    if (!form.title) {
+      const nameWithoutExt = file.name.replace(/\.[^.]+$/, '');
+      setForm((f) => ({ ...f, title: nameWithoutExt }));
+    }
   }
 
   return (
@@ -200,11 +326,47 @@ export default function BookManagement() {
         <div className="w-32"><Select options={formatOptions} value={format} onChange={(v) => { setFormat(v); setPage(1); }} /></div>
       </div>
 
+      {selectedIds.size > 0 && (
+        <div className="flex items-center gap-3 px-4 py-3 bg-accent/5 border border-accent/20 rounded-xl">
+          <span className="text-sm font-semibold text-accent">{selectedIds.size} {t('admin.selected')}</span>
+          <div className="flex items-center gap-2 ml-auto">
+            <Select
+              options={[{ value: '', label: t('admin.moveToCategory') }, ...categories.map((c) => ({ value: c.id, label: c.name }))]}
+              value={moveTargetCategory}
+              onChange={setMoveTargetCategory}
+              className="w-48 h-9"
+            />
+            <Button
+              onClick={handleBatchMove}
+              loading={moving}
+              disabled={!moveTargetCategory}
+              icon={<MoveHorizontal className="h-4 w-4" />}
+            >
+              {t('admin.move')}
+            </Button>
+            <Button variant="ghost" onClick={() => { setSelectedIds(new Set()); setMoveTargetCategory(''); }}>
+              {t('common.cancel')}
+            </Button>
+          </div>
+        </div>
+      )}
+
       <Card padding="none">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-border bg-surface-raised/50">
+                <th className="text-left px-4 py-2.5 text-[12px] text-text-tertiary font-medium w-8">
+                  <input
+                    type="checkbox"
+                    className="rounded border-border"
+                    checked={books.length > 0 && selectedIds.size === books.length}
+                    onChange={(e) => {
+                      if (e.target.checked) setSelectedIds(new Set(books.map(b => b.id)));
+                      else setSelectedIds(new Set());
+                    }}
+                  />
+                </th>
                 <th className="text-left px-4 py-2.5 text-[12px] text-text-tertiary font-medium w-16">{t('admin.cover')}</th>
                 <th className="text-left px-4 py-2.5 text-[12px] text-text-tertiary font-medium">{t('books.title')}</th>
                 <th className="text-left px-4 py-2.5 text-[12px] text-text-tertiary font-medium">{t('books.author')}</th>
@@ -218,18 +380,31 @@ export default function BookManagement() {
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={8} className="text-center py-12 text-text-tertiary">
+                  <td colSpan={9} className="text-center py-12 text-text-tertiary">
                     <Loader2 className="h-5 w-5 mx-auto animate-spin mb-2" strokeWidth={1.5} />
                     {t('common.loading')}
                   </td>
                 </tr>
               ) : books.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="text-center py-12 text-text-tertiary">{t('admin.noBooksFound')}</td>
+                  <td colSpan={9} className="text-center py-12 text-text-tertiary">{t('admin.noBooksFound')}</td>
                 </tr>
               ) : (
                 books.map((book) => (
                   <tr key={book.id} className="border-b border-border hover:bg-surface-raised/30 transition-colors">
+                    <td className="px-4 py-2.5">
+                      <input
+                        type="checkbox"
+                        className="rounded border-border"
+                        checked={selectedIds.has(book.id)}
+                        onChange={(e) => {
+                          const next = new Set(selectedIds);
+                          if (e.target.checked) next.add(book.id);
+                          else next.delete(book.id);
+                          setSelectedIds(next);
+                        }}
+                      />
+                    </td>
                     <td className="px-4 py-2.5">
                       {book.coverUrl ? (
                         <img src={book.coverUrl} alt={book.title} className="h-[56px] w-[40px] rounded object-cover" />
@@ -318,18 +493,69 @@ export default function BookManagement() {
               <div>
                 <h4 className="text-[13px] font-medium text-text-primary mb-3">{t('admin.media')}</h4>
                 <div className="space-y-3">
+                  {/* Book file upload (add mode) or read-only display (edit mode) */}
+                  {editId ? (
+                    <div>
+                      <label className="text-[12px] font-medium text-text-secondary mb-1.5 block">{t('admin.bookFileUrl')}</label>
+                      <Input placeholder="https://... or /uploads/..." value={form.fileUrl} onChange={(e) => setForm({ ...form, fileUrl: e.target.value })} />
+                    </div>
+                  ) : (
+                    <div>
+                      <label className="text-[12px] font-medium text-text-secondary mb-1.5 block">{t('admin.bookFile')}</label>
+                      <label className={`border-2 border-dashed rounded-lg p-5 text-center transition-colors cursor-pointer block ${bookFile ? 'border-accent/50 bg-accent/5' : 'border-border hover:border-accent/40'}`}>
+                        {bookFile ? (
+                          <div className="space-y-1">
+                            <FileText className="h-6 w-6 mx-auto text-accent" strokeWidth={1.5} />
+                            <p className="text-[13px] text-text-primary font-medium">{bookFile.name}</p>
+                            <p className="text-[11px] text-text-tertiary">{t('admin.clickToChange')}</p>
+                          </div>
+                        ) : (
+                          <div className="space-y-1">
+                            <Upload className="h-6 w-6 mx-auto text-text-tertiary" strokeWidth={1.5} />
+                            <p className="text-[13px] text-text-primary">{t('admin.dropBookFile')}</p>
+                            <p className="text-[11px] text-text-tertiary">EPUB, PDF, MOBI, TXT (max 200MB)</p>
+                          </div>
+                        )}
+                        <input ref={fileInputRef} type="file" accept=".epub,.pdf,.mobi,.txt" className="hidden" onChange={handleBookFileSelect} />
+                      </label>
+                      {uploadProgress > 0 && uploadProgress < 100 && (
+                        <div className="mt-2 bg-surface-raised rounded-full h-1.5 overflow-hidden">
+                          <div className="h-full bg-accent rounded-full transition-all duration-300" style={{ width: `${uploadProgress}%` }} />
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Cover */}
                   <div>
-                    <label className="text-[12px] font-medium text-text-secondary mb-1.5 block">{t('admin.coverImageUrl')}</label>
-                    <Input placeholder="https://..." value={form.coverUrl} onChange={(e) => setForm({ ...form, coverUrl: e.target.value })} />
-                    <label className="mt-2 border-2 border-dashed border-border rounded-lg p-5 text-center hover:border-accent/40 transition-colors cursor-pointer block">
-                      <Upload className="h-5 w-5 mx-auto text-text-tertiary mb-1" strokeWidth={1.5} />
-                      <p className="text-[12px] text-text-tertiary">{t('admin.uploadAsDataUrl')}</p>
+                    <label className="text-[12px] font-medium text-text-secondary mb-1.5 block">{t('admin.coverImage')}</label>
+                    {/* Current cover preview */}
+                    {(form.coverUrl && !coverFile) && (
+                      <div className="mb-2 flex items-center gap-2">
+                        <img src={form.coverUrl} alt="cover" className="h-20 w-14 rounded object-cover border border-border" />
+                        {editId && <Button variant="ghost" size="sm" onClick={handleRemoveCover} className="text-[11px] text-danger">{t('admin.removeCover') || 'Remove'}</Button>}
+                      </div>
+                    )}
+                    {/* New cover file selected */}
+                    {coverFile && (
+                      <div className="mb-2 flex items-center gap-2">
+                        <img src={URL.createObjectURL(coverFile)} alt="new cover" className="h-20 w-14 rounded object-cover border border-accent" />
+                        <div>
+                          <p className="text-[12px] text-accent">{coverFile.name}</p>
+                          {coverUploading ? (
+                            <span className="text-[11px] text-text-tertiary flex items-center gap-1"><Loader2 className="h-3 w-3 animate-spin" /> Uploading...</span>
+                          ) : (
+                            <button onClick={() => setCoverFile(null)} className="text-[11px] text-text-tertiary hover:text-danger">Cancel</button>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                    <Input placeholder={editId ? 'https://...' : t('admin.coverOptional')} value={form.coverUrl} onChange={(e) => setForm({ ...form, coverUrl: e.target.value })} />
+                    <label className={`mt-2 border-2 border-dashed rounded-lg p-3 text-center transition-colors cursor-pointer block ${coverFile ? 'border-accent/50 bg-accent/5' : 'border-border hover:border-accent/40'}`}>
+                      <Upload className="h-4 w-4 mx-auto text-text-tertiary mb-0.5" strokeWidth={1.5} />
+                      <p className="text-[11px] text-text-tertiary">{t('admin.uploadCoverHint')}</p>
                       <input type="file" accept="image/*" className="hidden" onChange={handleCoverUpload} />
                     </label>
-                  </div>
-                  <div>
-                    <label className="text-[12px] font-medium text-text-secondary mb-1.5 block">{t('admin.bookFileUrl')}</label>
-                    <Input placeholder="https://... or /uploads/..." value={form.fileUrl} onChange={(e) => setForm({ ...form, fileUrl: e.target.value })} />
                   </div>
                 </div>
               </div>

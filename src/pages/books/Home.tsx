@@ -6,8 +6,10 @@ import {
   BookMarked, Layers, GraduationCap, Zap, Target, Globe,
 } from 'lucide-react';
 import BookCover from '@/components/BookCover';
-import FloatingAiAssistant from '@/components/FloatingAiAssistant';
+import FloatingAiAssistant3D from '@/components/FloatingAiAssistant3D';
 import { useBookStore } from '@/stores/bookStore';
+import { bookApi } from '@/utils/api';
+import type { Book } from '@/types';
 
 const QUICK_LINKS = [
   { icon: Zap, labelKey: 'home.featuredBooks', descKey: 'home.recentlyRead', color: 'bg-blue-50 text-blue-600', iconBg: 'bg-blue-100', to: '/books' },
@@ -21,16 +23,21 @@ const QUICK_LINKS = [
 export default function Home() {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const { books, fetchBooks, setFilters } = useBookStore();
+  const { fetchBooks, setFilters } = useBookStore();
   const [searchQuery, setSearchQuery] = useState('');
+  const [allBooks, setAllBooks] = useState<Book[]>([]);
 
   useEffect(() => {
-    fetchBooks();
+    fetchBooks(); // still fetch for store (used by other pages)
+    // Also fetch all books for homepage display
+    bookApi.getBooks({ page: 1, pageSize: 200 }).then((res: any) => {
+      setAllBooks(res.data?.data || []);
+    }).catch(() => {});
   }, []);
 
-  const popularBooks = [...books].sort((a, b) => b.readCount - a.readCount).slice(0, 4);
-  const featuredBooks = books.slice(0, 6);
-  const newBooks = [...books].sort((a, b) => new Date(b.publishDate || 0).getTime() - new Date(a.publishDate || 0).getTime()).slice(0, 6);
+  const popularBooks = [...allBooks].sort((a, b) => b.readCount - a.readCount).slice(0, 4);
+  const featuredBooks = allBooks.slice(0, 6);
+  const newBooks = [...allBooks].sort((a, b) => new Date(b.publishDate || 0).getTime() - new Date(a.publishDate || 0).getTime()).slice(0, 6);
 
   const handleSearch = () => {
     if (searchQuery.trim()) {
@@ -333,7 +340,7 @@ export default function Home() {
       </footer>
 
       {/* Floating AI Assistant */}
-      <FloatingAiAssistant />
+      <FloatingAiAssistant3D />
     </div>
   );
 }

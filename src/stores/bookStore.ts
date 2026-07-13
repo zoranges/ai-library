@@ -11,7 +11,7 @@ interface BookState {
   isLoading: boolean;
   error: string | null;
 
-  fetchBooks: (reset?: boolean) => Promise<void>;
+  fetchBooks: () => Promise<void>;
   fetchCategories: () => Promise<void>;
   fetchBookById: (id: string) => Promise<void>;
   searchBooks: (query: string) => Promise<void>;
@@ -29,18 +29,17 @@ export const useBookStore = create<BookState>((set, get) => ({
   isLoading: false,
   error: null,
 
-  fetchBooks: async (reset = true) => {
+  fetchBooks: async () => {
     set({ isLoading: true, error: null });
     try {
       const { filters, pagination } = get();
-      const page = reset ? 1 : pagination.page;
-      const res = await bookApi.getBooks({ ...filters, page, pageSize: pagination.pageSize });
+      const res = await bookApi.getBooks({ ...filters, page: pagination.page, pageSize: pagination.pageSize });
       const data = res.data as PaginatedResponse<Book>;
-      set((state) => ({
-        books: reset ? data.data : [...state.books, ...data.data],
+      set({
+        books: data.data,
         pagination: { page: data.page, pageSize: data.pageSize, total: data.total, totalPages: data.totalPages },
         isLoading: false,
-      }));
+      });
     } catch (err: any) {
       set({ error: err?.message || '获取图书失败', isLoading: false });
     }
@@ -75,7 +74,10 @@ export const useBookStore = create<BookState>((set, get) => ({
   },
 
   setFilters: (filters) => {
-    set((state) => ({ filters: { ...state.filters, ...filters } }));
+    set((state) => ({
+      filters: { ...state.filters, ...filters },
+      pagination: { ...state.pagination, page: 1 },
+    }));
   },
 
   setPage: (page) => {

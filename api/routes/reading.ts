@@ -2,6 +2,7 @@ import { Router, type Request, type Response } from 'express';
 import { v4 as uuidv4 } from 'uuid';
 import { queryAll, queryOne, run } from '../db/database.js';
 import { verifyToken } from '../middleware/auth.js';
+import { checkAndUnlockAchievements, calculateStreak, calculateLongestStreak } from '../services/achievementChecker.js';
 
 const router = Router();
 
@@ -114,6 +115,10 @@ router.post('/progress', verifyToken, async (req: Request, res: Response): Promi
         'INSERT INTO points (id, userId, points, type, description, referenceId) VALUES (?, ?, ?, ?, ?, ?)',
         [uuidv4(), userId, 10, 'reading', 'Completed reading a book', bookId]
       );
+      // Check achievements
+      checkAndUnlockAchievements(userId).then(r => {
+        if (r.unlocked.length > 0) console.log(`User ${userId} unlocked: ${r.unlocked.join(', ')}`);
+      });
     }
 
     // Check if a quiz already exists for this user+book
@@ -169,6 +174,10 @@ router.post('/sessions', verifyToken, async (req: Request, res: Response): Promi
         [uuidv4(), userId, pointsEarned, 'reading', `Reading session: ${duration} seconds`, sessionId]
       );
     }
+    // Check achievements
+    checkAndUnlockAchievements(userId).then(r => {
+      if (r.unlocked.length > 0) console.log(`User ${userId} unlocked: ${r.unlocked.join(', ')}`);
+    });
 
     const session = await queryOne('SELECT * FROM reading_sessions WHERE id = ?', [sessionId]);
     res.status(201).json({ success: true, data: session });
@@ -348,7 +357,10 @@ router.get('/report', verifyToken, async (req: Request, res: Response): Promise<
     const totalBooks = await queryOne('SELECT COUNT(*) as count FROM reading_progress WHERE userId = ?', [userId]);
     const totalMinutes = await queryOne('SELECT COALESCE(SUM(duration), 0) as total FROM reading_sessions WHERE userId = ?', [userId]);
     const totalPages = await queryOne('SELECT COALESCE(SUM(currentPage), 0) as total FROM reading_progress WHERE userId = ?', [userId]);
-    const quizStats = await queryOne('SELECT COUNT(*) as totalQuizzes, COALESCE(AVG(score), 0) as avgScore FROM quiz_results WHERE userId = ?', [userId]);
+    const quizStats = await queryOne<{ totalQuizzes: number; avgScore: number; totalCorrect: number; totalQuestions: number }>(
+      'SELECT COUNT(*) as totalQuizzes, COALESCE(AVG(score), 0) as avgScore, COALESCE(SUM(correctAnswers), 0) as totalCorrect, COALESCE(SUM(totalQuestions), 0) as totalQuestions FROM quiz_results WHERE userId = ?',
+      [userId]
+    );
     const highlights = await queryOne('SELECT COUNT(*) as count FROM highlights WHERE userId = ?', [userId]);
     const notes = await queryOne('SELECT COUNT(*) as count FROM notes WHERE userId = ?', [userId]);
     const achievements = await queryOne('SELECT COUNT(*) as count FROM user_achievements WHERE userId = ?', [userId]);
@@ -417,6 +429,32 @@ router.get('/report', verifyToken, async (req: Request, res: Response): Promise<
       [userId]
     );
 
+    // Reading streak
+    const streak = await calculateStreak(userId);
+    const longestStreak = await calculateLongestStreak(userId);
+
+    // Weekly reading minutes (last 7 days)
+    const weeklyMinutes: number[] = [];
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date();
+      d.setDate(d.getDate() - i);
+      const dateStr = d.toISOString().substring(0, 10);
+      const mins = await queryOne<{ total: number }>(
+        'SELECT COALESCE(SUM(duration), 0) as total FROM reading_sessions WHERE userId = ? AND DATE(startedAt) = ?',
+        [userId, dateStr]
+      );
+      weeklyMinutes.push(Math.round((mins?.total || 0) / 60));
+    }
+
+    // Reading speed: pages per minute
+    const totalMins = Math.round(((totalMinutes?.total as number) || 0) / 60);
+    const speed = totalMins > 0 ? Math.round((((totalPages?.total as number) || 0) / totalMins) * 10) / 10 : 0;
+
+    // Quiz accuracy
+    const quizAccuracy = (quizStats?.totalQuestions || 0) > 0
+      ? Math.round(((quizStats?.totalCorrect || 0) / (quizStats?.totalQuestions || 1)) * 100)
+      : 0;
+
     // Determine reading preference profile
     let preferenceProfile = 'balanced';
     if (categoryPref.length > 0) {
@@ -447,7 +485,16 @@ router.get('/report', verifyToken, async (req: Request, res: Response): Promise<
           totalHighlights: highlights?.count || 0,
           totalNotes: notes?.count || 0,
           totalAchievements: achievements?.count || 0,
+          readingStreak: streak,
+          readingSpeed: speed,
         },
+        readingStreak: streak,
+        longestStreak,
+        readingSpeed: speed,
+        weeklyMinutes,
+        quizAccuracy,
+        quizTotalCorrect: quizStats?.totalCorrect || 0,
+        quizTotalQuestions: quizStats?.totalQuestions || 0,
         languageDistribution: languageDist,
         categoryPreferences: categoryPref,
         difficultyDistribution: difficultyDist,
@@ -458,6 +505,112 @@ router.get('/report', verifyToken, async (req: Request, res: Response): Promise<
     });
   } catch (error) {
     res.status(500).json({ success: false, error: 'Failed to generate reading report' });
+  }
+});
+
+// AINS bridge: provides student + book + quiz data for Delima AINS integration
+router.get('/ains-bridge/:bookId', verifyToken, async (req: Request, res: Response): Promise<void> => {
+  try {
+    const userId = req.user!.userId;
+    const { bookId } = req.params;
+
+    // Student info with school
+    const student = await queryOne<{
+      username: string; email: string; grade: string; icNumber: string;
+      schoolName: string; schoolState: string;
+    }>(
+      `SELECT u.username, u.email, u.grade, u.icNumber, s.name as schoolName, s.state as schoolState
+       FROM users u LEFT JOIN schools s ON u.schoolId = s.id WHERE u.id = ?`,
+      [userId]
+    );
+
+    // Book info
+    const book = await queryOne<{ title: string; author: string; pages: number; language: string }>(
+      'SELECT title, author, pages AS pages, language FROM books WHERE id = ?', [bookId]
+    );
+
+    // Quiz result
+    const quiz = await queryOne<{
+      score: number; totalQuestions: number; correctAnswers: number; completedAt: string;
+    }>(
+      'SELECT score, totalQuestions, correctAnswers, completedAt FROM quiz_results WHERE userId = ? AND bookId = ?',
+      [userId, bookId]
+    );
+
+    // Reading progress
+    const progress = await queryOne<{
+      currentPage: number; totalPages: number; percentage: number; isCompleted: number;
+      lastReadAt: string; startedAt: string; completedAt: string;
+    }>(
+      'SELECT currentPage, totalPages, percentage, isCompleted, lastReadAt, startedAt, completedAt FROM reading_progress WHERE userId = ? AND bookId = ?',
+      [userId, bookId]
+    );
+
+    // Total reading time for this book
+    const readingTime = await queryOne<{ total: number }>(
+      'SELECT COALESCE(SUM(duration), 0) as total FROM reading_sessions WHERE userId = ? AND bookId = ?',
+      [userId, bookId]
+    );
+
+    // Get AINS URL from config
+    const ainsConfig = await queryOne<{ configValue: string }>(
+      'SELECT configValue FROM ai_config WHERE configKey = ?', ['ains_url']
+    );
+
+    const ainsUrl = ainsConfig?.configValue || 'https://delima.moe-dl.edu.my';
+
+    // Build pre-filled URL with student and book data
+    const params = new URLSearchParams({
+      studentName: student?.username || '',
+      studentEmail: student?.email || '',
+      studentGrade: student?.grade || '',
+      studentIC: student?.icNumber || '',
+      schoolName: student?.schoolName || '',
+      schoolState: student?.schoolState || '',
+      bookTitle: book?.title || '',
+      bookAuthor: book?.author || '',
+      bookPages: String(book?.pages || ''),
+      bookLanguage: book?.language || '',
+      quizScore: String(quiz?.score || 0),
+      quizCorrect: String(quiz?.correctAnswers || 0),
+      quizTotal: String(quiz?.totalQuestions || 0),
+      quizDate: quiz?.completedAt?.substring(0, 10) || '',
+      readingPages: String(progress?.currentPage || 0),
+      readingMinutes: String(Math.round(((readingTime?.total as number) || 0) / 60)),
+      readingCompleted: progress?.isCompleted ? 'true' : 'false',
+      completedDate: progress?.completedAt?.substring(0, 10) || '',
+    });
+
+    res.json({
+      success: true,
+      data: {
+        ainsUrl: `${ainsUrl}?${params.toString()}`,
+        student: {
+          name: student?.username,
+          email: student?.email,
+          grade: student?.grade,
+          icNumber: student?.icNumber,
+          schoolName: student?.schoolName,
+          schoolState: student?.schoolState,
+        },
+        book: {
+          title: book?.title,
+          author: book?.author,
+          pages: book?.pages,
+          language: book?.language,
+        },
+        quiz: quiz ? {
+          score: quiz.score,
+          totalQuestions: quiz.totalQuestions,
+          correctAnswers: quiz.correctAnswers,
+          completedAt: quiz.completedAt,
+        } : null,
+        readingTime: Math.round(((readingTime?.total as number) || 0) / 60),
+        readingPages: progress?.currentPage || 0,
+      },
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, error: 'Failed to generate AINS bridge data' });
   }
 });
 

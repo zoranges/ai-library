@@ -6,6 +6,9 @@ import Card from '@/components/ui/Card';
 import Input from '@/components/ui/Input';
 import Select from '@/components/ui/Select';
 import Badge from '@/components/ui/Badge';
+import DateRangePicker from '@/components/ui/DateRangePicker';
+import CascadingFilter from '@/components/ui/CascadingFilter';
+import { useAuthStore } from '@/stores/authStore';
 import { cn } from '@/lib/utils';
 import { adminApi } from '@/utils/api';
 
@@ -26,28 +29,15 @@ function getRankDisplay(rank: number) {
 export default function LeaderboardManagement() {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const [period, setPeriod] = useState('month');
-  const [region, setRegion] = useState('');
-  const [schoolId, setSchoolId] = useState('');
+  const { user } = useAuthStore();
+  const isSuper = user?.role === 'super_admin';
+  const [filters, setFilters] = useState({ country: '', state: '', district: '', schoolId: '' });
   const [metric, setMetric] = useState('points');
+  const [startDate, setStartDate] = useState<string | null>(null);
+  const [endDate, setEndDate] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [data, setData] = useState<any[]>([]);
-  const [schools, setSchools] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-
-  const periodOptions = [
-    { value: 'week', label: t('leaderboard.week') },
-    { value: 'month', label: t('leaderboard.month') },
-    { value: 'year', label: t('leaderboard.year') },
-    { value: 'all', label: t('leaderboard.allTime') },
-  ];
-
-  const regionOptions = [
-    { value: '', label: t('admin.allRegions') },
-    { value: 'Selangor', label: 'Selangor' },
-    { value: 'Kuala Lumpur', label: 'Kuala Lumpur' },
-    { value: 'Penang', label: 'Penang' },
-  ];
 
   const metricOptions = [
     { value: 'points', label: t('leaderboard.points') },
@@ -57,18 +47,18 @@ export default function LeaderboardManagement() {
   ];
 
   useEffect(() => {
-    adminApi.getSchools({ pageSize: 500 }).then((res) => setSchools(res.data?.data || [])).catch(() => {});
-  }, []);
-
-  useEffect(() => {
     setLoading(true);
-    const params: Record<string, any> = { period, type: metric, limit: 50 };
-    if (schoolId) params.schoolId = schoolId;
-    else if (region) params.state = region;
+    const params: Record<string, any> = { type: metric, limit: 50 };
+    if (filters.country) params.country = filters.country;
+    if (filters.state) params.state = filters.state;
+    if (filters.district) params.district = filters.district;
+    if (filters.schoolId) params.schoolId = filters.schoolId;
+    if (startDate) params.startDate = startDate;
+    if (endDate) params.endDate = endDate;
     adminApi.getLeaderboard(params).then((res) => {
-      if (res.data) setData(Array.isArray(res.data) ? res.data : res.data.data || []);
+      if (Array.isArray(res.data)) setData(res.data);
     }).catch(() => {}).finally(() => setLoading(false));
-  }, [period, region, schoolId, metric]);
+  }, [startDate, endDate, filters, metric]);
 
   const filtered = data.filter((e) => {
     if (search && !e.username?.toLowerCase().includes(search.toLowerCase())) return false;
@@ -86,15 +76,8 @@ export default function LeaderboardManagement() {
       <h2 className="text-lg font-semibold text-text-primary font-heading">{t('admin.leaderboardManagement')}</h2>
 
       <div className="flex flex-wrap items-center gap-3">
-        <div className="w-28"><Select options={periodOptions} value={period} onChange={setPeriod} /></div>
-        <div className="w-32"><Select options={regionOptions} value={region} onChange={(v) => { setRegion(v); setSchoolId(''); }} /></div>
-        <div className="w-44">
-          <Select
-            options={[{ value: '', label: t('admin.allSchools') }, ...schools.map((s: any) => ({ value: s.id, label: s.name }))]}
-            value={schoolId}
-            onChange={(v) => { setSchoolId(v); if (v) setRegion(''); }}
-          />
-        </div>
+        {isSuper && <CascadingFilter values={filters} onChange={setFilters} />}
+        <DateRangePicker startDate={startDate} endDate={endDate} onChange={(s, e) => { setStartDate(s); setEndDate(e); }} />
         <div className="w-36"><Select options={metricOptions} value={metric} onChange={setMetric} /></div>
         <div className="w-56"><Input placeholder={t('admin.searchStudentName')} value={search} onChange={(e) => setSearch(e.target.value)} icon={<Search className="h-4 w-4" strokeWidth={1.5} />} /></div>
       </div>

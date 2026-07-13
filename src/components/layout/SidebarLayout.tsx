@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import {
   User, LogOut, Menu, Globe, ChevronDown, Sun, Moon, Bell,
   Home, BookMarked, Trophy, Sparkles, Heart,
-  ChevronRight, Settings, Target, Camera,
+  ChevronRight, Settings, Target, Camera, ExternalLink,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuthStore } from '@/stores/authStore';
@@ -121,24 +121,21 @@ export default function SidebarLayout() {
         })}
       </nav>
 
-      {/* Kids Mode */}
-      <div className="px-3 pb-4 relative z-10">
-        <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-4 border border-white/20">
-          <div className="flex items-center gap-2 mb-3">
-            <img src="/dun.png" alt="Shield" className="w-8 h-8 rounded-full" />
-            <span className="text-white font-bold text-lg">Kids Mode</span>
-          </div>
-          <div className="flex items-center justify-center mb-3">
-            <img src="/youyi.png" alt="Kids" className="h-18 w-auto rounded-lg" />
-          </div>
-          <p className="text-white/70 text-sm mb-3">Bright, safe, bilingual learning space.</p>
-          <div className="flex items-center justify-between">
-            <span className="text-white/80 text-sm">Enable</span>
-            <button className="w-12 h-7 rounded-full transition-colors relative" style={{ backgroundColor: '#46b969' }}>
-              <span className="absolute right-0.5 top-0.5 w-6 h-6 rounded-full bg-white shadow-lg transform translate-x-0 transition-transform"></span>
-            </button>
-          </div>
-        </div>
+      {/* NILAM */}
+      <div className="px-3 relative z-10">
+        <a
+          href="https://ains.moe.gov.my/login?returnUrl=/"
+          target="_blank"
+          rel="noopener noreferrer"
+          className={cn(
+            'flex items-center gap-4 h-[60px] text-[17px] transition-all duration-300 rounded-xl font-semibold tracking-wide',
+            'text-white hover:bg-white/10 hover:text-white/90',
+            collapsed && 'justify-center px-0'
+          )}
+        >
+          <ExternalLink className="h-5 w-5 shrink-0" strokeWidth={1.5} />
+          {!collapsed && <span className="truncate">NILAM</span>}
+        </a>
       </div>
 
       {/* Bottom Controls */}
@@ -150,11 +147,11 @@ export default function SidebarLayout() {
             className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-white/70 hover:bg-white/10 hover:text-white text-sm transition-colors"
           >
             <Globe className="h-4 w-4 shrink-0" />
-            <span className="flex-1 text-left truncate">{LANGS.find(l => l.code === i18n.language)?.label || 'English'}</span>
+            <span className="flex-1 text-left truncate">{t('nav.switchLang')}</span>
             <ChevronDown className={`h-3.5 w-3.5 shrink-0 transition-transform ${showLangMenu ? 'rotate-180' : ''}`} />
           </button>
           {showLangMenu && (
-            <div className="absolute left-full bottom-0 ml-2 bg-white rounded-xl shadow-xl border border-gray-100 py-1 z-50 min-w-[150px]">
+            <div className="absolute bottom-full left-0 mb-1 bg-white rounded-xl shadow-xl border border-gray-100 py-1 z-50 min-w-[150px]">
               {LANGS.map(({ code, label }) => (
                 <button
                   key={code}
@@ -179,7 +176,7 @@ export default function SidebarLayout() {
         </button>
         <button className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-white/70 hover:bg-white/10 hover:text-white text-sm transition-colors relative">
           <Bell className="h-4 w-4 shrink-0" />
-          <span>Notifications</span>
+          <span>{t('common.notifications', 'Notifications')}</span>
           <span className="absolute right-2 h-4 w-4 rounded-full bg-red-500 text-white text-[9px] font-bold flex items-center justify-center">3</span>
         </button>
       </div>

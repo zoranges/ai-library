@@ -6,6 +6,7 @@ import Tabs from '@/components/ui/Tabs';
 import Button from '@/components/ui/Button';
 import { useAuthStore } from '@/stores/authStore';
 import { statsApi } from '@/utils/api';
+import EditProfileModal from '@/components/profile/EditProfileModal';
 import type { ReadingStats } from '@/types';
 
 const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
@@ -17,6 +18,7 @@ export default function Profile() {
   const location = useLocation();
   const [stats, setStats] = useState<ReadingStats | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [showEditModal, setShowEditModal] = useState(false);
 
   const pathSuffix = location.pathname.replace('/profile', '').replace('/', '') || 'overview';
 
@@ -57,14 +59,18 @@ export default function Profile() {
     <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
       <div className="bg-surface rounded-xl border border-border p-5 mb-6">
         <div className="flex items-center gap-4">
-          <div className="w-14 h-14 rounded-full bg-gradient-to-br from-accent to-brand-600 flex items-center justify-center text-white text-lg font-bold shrink-0">
-            {user?.username?.slice(0, 2).toUpperCase() || 'U'}
+          <div className="w-14 h-14 rounded-full bg-gradient-to-br from-accent to-brand-600 flex items-center justify-center text-white text-lg font-bold shrink-0 overflow-hidden">
+            {user?.avatar ? (
+              <img src={user.avatar} alt="avatar" className="w-full h-full object-cover" />
+            ) : (
+              (user?.username?.slice(0, 2).toUpperCase() || 'U')
+            )}
           </div>
           <div className="flex-1 min-w-0">
             <h2 className="text-base font-bold text-text-primary font-heading">{user?.username || 'user'}</h2>
             <p className="text-sm text-text-tertiary mt-0.5">{user?.email || ''}</p>
           </div>
-          <Button variant="outline" size="sm" icon={<Edit3 className="w-3.5 h-3.5" strokeWidth={1.5} />} className="rounded-xl">
+          <Button variant="outline" size="sm" icon={<Edit3 className="w-3.5 h-3.5" strokeWidth={1.5} />} className="rounded-xl" onClick={() => setShowEditModal(true)}>
             {t('profile.editProfile')}
           </Button>
         </div>
@@ -147,6 +153,8 @@ export default function Profile() {
       ) : (
         <Outlet />
       )}
+
+      <EditProfileModal isOpen={showEditModal} onClose={() => setShowEditModal(false)} />
     </div>
   );
 }

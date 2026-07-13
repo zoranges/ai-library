@@ -14,6 +14,7 @@ export interface JwtPayload {
   email: string;
   role: string;
   schoolId: string;
+  username?: string;
 }
 
 declare global {

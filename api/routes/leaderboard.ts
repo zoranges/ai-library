@@ -5,11 +5,27 @@ import { verifyToken } from '../middleware/auth.js';
 
 const router = Router();
 
+router.get('/my-school', verifyToken, async (req: Request, res: Response): Promise<void> => {
+  try {
+    const school = await queryOne<{ id: string; name: string; state: string; district: string; country: string }>(
+      `SELECT s.id, s.name, s.state, s.district, s.country
+       FROM schools s JOIN users u ON u.schoolId = s.id
+       WHERE u.id = ?`,
+      [req.user!.userId]
+    );
+    res.json({ success: true, data: school || null });
+  } catch (error) {
+    res.status(500).json({ success: false, error: 'Failed to fetch school info' });
+  }
+});
+
 router.get('/', verifyToken, async (req: Request, res: Response): Promise<void> => {
   try {
     const {
       type = 'points',
       period = 'all',
+      startDate,
+      endDate,
       region,
       regionId,
       schoolId,
@@ -18,6 +34,20 @@ router.get('/', verifyToken, async (req: Request, res: Response): Promise<void> 
       country,
       limit = '20',
     } = req.query;
+
+    const user = req.user!;
+    const isSuperAdmin = user.role === 'super_admin';
+    const isAdmin = user.role === 'admin' || isSuperAdmin;
+
+    // Look up school state for non-super-admin users to enforce geographic restrictions
+    let userState = '';
+    if (!isSuperAdmin) {
+      const school = await queryOne<{ state: string }>(
+        'SELECT state FROM schools WHERE id = (SELECT schoolId FROM users WHERE id = ?)',
+        [user.userId]
+      );
+      userState = school?.state || '';
+    }
 
     const limitNum = Math.min(100, Math.max(1, parseInt(limit as string)));
 
@@ -48,7 +78,22 @@ router.get('/', verifyToken, async (req: Request, res: Response): Promise<void> 
     let sessionsDateFilterClause = ''; // for reading_sessions
 
     const now = new Date();
-    if (period === 'month') {
+    const sd = startDate as string | undefined;
+    const ed = endDate as string | undefined;
+
+    if (sd || ed) {
+      // Custom date range: lower bound from startDate, upper bound from endDate
+      if (sd) {
+        dateFilterClause += ` AND completedAt >= '${sd}'`;
+        pointsDateFilterClause += ` AND createdAt >= '${sd}'`;
+        sessionsDateFilterClause += ` AND startedAt >= '${sd}'`;
+      }
+      if (ed) {
+        dateFilterClause += ` AND completedAt <= '${ed}'`;
+        pointsDateFilterClause += ` AND createdAt <= '${ed}'`;
+        sessionsDateFilterClause += ` AND startedAt <= '${ed}'`;
+      }
+    } else if (period === 'month') {
       const monthStart = new Date(now.getFullYear(), now.getMonth(), 1)
         .toISOString()
         .split('T')[0];
@@ -87,42 +132,68 @@ router.get('/', verifyToken, async (req: Request, res: Response): Promise<void> 
 
     const params: unknown[] = [];
 
+    // School isolation for non-super admins
+    if (!isSuperAdmin) {
+      sql += ' AND u.schoolId = ?';
+      params.push(user.schoolId);
+    }
+
     // Apply region + regionId filter
     if (region && regionId) {
-      switch (region) {
-        case 'school':
+      if (!isAdmin) {
+        // Non-admin users can only see their own school or state
+        if (region === 'school') {
           sql += ' AND u.schoolId = ?';
-          params.push(regionId);
-          break;
-        case 'district':
-          sql += ' AND s.district = ?';
-          params.push(regionId);
-          break;
-        case 'state':
+          params.push(user.schoolId);
+        } else if (region === 'state') {
           sql += ' AND s.state = ?';
-          params.push(regionId);
-          break;
-        case 'country':
-          sql += ' AND s.country = ?';
-          params.push(regionId);
-          break;
+          params.push(userState);
+        }
+        // district and country are silently ignored for non-admin
+      } else {
+        switch (region) {
+          case 'school':
+            if (isSuperAdmin) {
+              sql += ' AND u.schoolId = ?';
+              params.push(regionId);
+            }
+            break;
+          case 'district':
+            sql += ' AND s.district = ?';
+            params.push(regionId);
+            break;
+          case 'state':
+            sql += ' AND s.state = ?';
+            params.push(regionId);
+            break;
+          case 'country':
+            sql += ' AND s.country = ?';
+            params.push(regionId);
+            break;
+        }
       }
     }
 
     // Apply direct filter params
-    if (schoolId) {
+    if (schoolId && isSuperAdmin) {
       sql += ' AND u.schoolId = ?';
       params.push(schoolId);
     }
-    if (district) {
+    if (district && isAdmin) {
       sql += ' AND s.district = ?';
       params.push(district);
     }
     if (state) {
-      sql += ' AND s.state = ?';
-      params.push(state);
+      // Non-admin users are forced to their own state
+      if (!isAdmin) {
+        sql += ' AND s.state = ?';
+        params.push(userState);
+      } else {
+        sql += ' AND s.state = ?';
+        params.push(state);
+      }
     }
-    if (country) {
+    if (country && isAdmin) {
       sql += ' AND s.country = ?';
       params.push(country);
     }

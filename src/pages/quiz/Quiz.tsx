@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { CheckCircle, XCircle, Trophy, ChevronLeft, Star, CheckCheck } from 'lucide-react';
+import { CheckCircle, XCircle, Trophy, ChevronLeft, Star, CheckCheck, ExternalLink, BookOpen } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import Button from '@/components/ui/Button';
-import { quizApi, bookApi } from '@/utils/api';
+import { quizApi, bookApi, readingApi } from '@/utils/api';
 import type { QuizQuestion, QuizResult } from '@/types';
 
 export default function Quiz() {
@@ -19,6 +19,8 @@ export default function Quiz() {
   const [result, setResult] = useState<QuizResult | null>(null);
   const [alreadyCompleted, setAlreadyCompleted] = useState(false);
   const [showPointsAnim, setShowPointsAnim] = useState(false);
+  const [ainsData, setAinsData] = useState<{ ainsUrl: string } | null>(null);
+  const [ainsLoading, setAinsLoading] = useState(false);
 
   useEffect(() => {
     if (!bookId) return;
@@ -37,6 +39,7 @@ export default function Quiz() {
         if (existing) {
           setResult(existing);
           setAlreadyCompleted(true);
+          fetchAinsBridge();
         }
       } catch {} finally {
         setIsLoading(false);
@@ -44,6 +47,17 @@ export default function Quiz() {
     }
     load();
   }, [bookId]);
+
+  async function fetchAinsBridge() {
+    if (!bookId) return;
+    setAinsLoading(true);
+    try {
+      const res = await readingApi.getAinsBridge(bookId);
+      setAinsData(res.data || null);
+    } catch {} finally {
+      setAinsLoading(false);
+    }
+  }
 
   async function handleSubmit() {
     if (!bookId || answers.includes(-1)) return;
@@ -53,6 +67,7 @@ export default function Quiz() {
       setResult(res.data);
       setShowPointsAnim(true);
       setTimeout(() => setShowPointsAnim(false), 3000);
+      fetchAinsBridge();
     } catch {} finally {
       setSubmitting(false);
     }
@@ -73,9 +88,13 @@ export default function Quiz() {
     );
   }
 
+  const ainsCard = ainsData && (
+    <AinsBridgeCard ainsUrl={ainsData.ainsUrl} t={t} />
+  );
+
   if (alreadyCompleted && result) {
     return (
-      <div className="max-w-xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div className="max-w-xl mx-auto px-4 sm:px-6 lg:px-8 space-y-5">
         <button
           onClick={() => navigate(-1)}
           className="flex items-center gap-1.5 text-sm text-text-tertiary hover:text-accent mb-8 transition-colors duration-micro ease-out-quart"
@@ -105,6 +124,7 @@ export default function Quiz() {
             </div>
           </div>
         </div>
+        {ainsCard}
       </div>
     );
   }
@@ -112,7 +132,7 @@ export default function Quiz() {
   if (result && !alreadyCompleted) {
     const earned = result.correctAnswers;
     return (
-      <div className="max-w-xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div className="max-w-xl mx-auto px-4 sm:px-6 lg:px-8 space-y-5">
         <div className="bg-surface rounded-xl border border-border p-10 text-center animate-scale-in">
           <div className="inline-flex items-center justify-center w-14 h-14 bg-warning-subtle rounded-xl mb-5">
             <Trophy className="w-7 h-7 text-warning" strokeWidth={1.5} />
@@ -153,6 +173,7 @@ export default function Quiz() {
           </div>
           <Button className="mt-8" onClick={() => navigate(-1)}>{t('common.back')}</Button>
         </div>
+        {ainsCard}
       </div>
     );
   }
@@ -262,6 +283,34 @@ export default function Quiz() {
           </Button>
         )}
       </div>
+    </div>
+  );
+}
+
+function AinsBridgeCard({ ainsUrl, t }: { ainsUrl: string; t: any }) {
+  return (
+    <div className="pro-card bg-gradient-to-r from-accent/10 to-accent/5 border-accent/20 p-6 rounded-xl text-center animate-slide-up">
+      <div className="inline-flex items-center justify-center w-12 h-12 bg-accent/10 rounded-xl mb-4">
+        <BookOpen className="w-6 h-6 text-accent" />
+      </div>
+      <h3 className="text-base font-bold text-text-primary font-heading mb-2">
+        完成阅读报告
+      </h3>
+      <p className="text-sm text-text-secondary mb-5 max-w-md mx-auto leading-relaxed">
+        恭喜完成阅读！点击下方按钮前往 <strong>Delima AINS</strong> 填写阅读报告或完成阅读计划，无需额外登入。
+      </p>
+      <a
+        href={ainsUrl}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="inline-flex items-center gap-2 px-6 py-3 bg-accent hover:bg-accent-hover text-white rounded-xl font-semibold text-sm shadow-1 hover:shadow-2 transition-all duration-200 hover:-translate-y-0.5"
+      >
+        <ExternalLink className="w-4 h-4" />
+        前往 Delima AINS 填写报告
+      </a>
+      <p className="text-[11px] text-text-tertiary mt-3">
+        系统将自动填入学生信息和阅读数据，无需重复输入
+      </p>
     </div>
   );
 }

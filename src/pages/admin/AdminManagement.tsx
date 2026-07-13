@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Plus, Edit2, Trash2, RefreshCw, Ban } from 'lucide-react';
 import Card from '@/components/ui/Card';
@@ -8,7 +8,6 @@ import Select from '@/components/ui/Select';
 import Badge from '@/components/ui/Badge';
 import Modal from '@/components/ui/Modal';
 import { useAuthStore } from '@/stores/authStore';
-import { cn } from '@/lib/utils';
 import { adminApi } from '@/utils/api';
 
 
@@ -22,35 +21,34 @@ export default function AdminManagement() {
   const { user } = useAuthStore();
   const isSuper = user?.role === 'super_admin';
   const [admins, setAdmins] = useState<any[]>([]);
+  const [schools, setSchools] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
-  const [form, setForm] = useState({ name: '', email: '', password: '', role: 'admin', schoolId: '' });
+  const [form, setForm] = useState({ name: '', email: '', password: '', schoolId: '' });
 
-  useEffect(() => {
+  const fetchAdmins = useCallback(() => {
     setLoading(true);
     adminApi.getAdmins().then((res) => {
       if (res.data) setAdmins(res.data);
     }).catch(() => {}).finally(() => setLoading(false));
   }, []);
 
+  useEffect(() => {
+    fetchAdmins();
+    adminApi.getSchools({ pageSize: 500 }).then((res) => {
+      if (res.data?.data) setSchools(res.data.data);
+    }).catch(() => {});
+  }, [fetchAdmins]);
+
   const schoolOptions = [
     { value: '', label: t('admin.selectSchool') },
-    { value: '1', label: 'SMK Tunku Abdul Rahman' },
-    { value: '2', label: 'SK Bukit Damansara' },
-    { value: '3', label: 'SMK Sri Hartamas' },
-    { value: '4', label: 'SK Bangsar' },
-    { value: '5', label: 'SMK Pantai' },
-  ];
-
-  const roles = [
-    { value: 'admin', label: t('admin.schoolAdmin') },
-    { value: 'super_admin', label: t('admin.superAdmin') },
+    ...schools.map((s: any) => ({ value: s.id, label: s.name })),
   ];
 
   function openAdd() {
     setEditId(null);
-    setForm({ name: '', email: '', password: '', role: 'admin', schoolId: '' });
+    setForm({ name: '', email: '', password: '', schoolId: '' });
     setModalOpen(true);
   }
 
@@ -58,27 +56,33 @@ export default function AdminManagement() {
     const a = admins.find((x) => x.id === id);
     if (a) {
       setEditId(id);
-      setForm({ name: a.username || a.user?.username || '', email: a.email || a.user?.email || '', password: '', role: a.role, schoolId: a.schoolId || '' });
+      setForm({ name: a.username || a.user?.username || '', email: a.email || a.user?.email || '', password: '', schoolId: a.schoolId || '' });
       setModalOpen(true);
     }
   }
 
   async function handleSave() {
+    if (!form.name.trim() || !form.email.trim()) { alert('请填写用户名和邮箱'); return; }
     if (editId) {
-      await adminApi.updateAdmin(editId, { schoolId: form.schoolId || undefined }).catch(() => {});
-      setAdmins((prev) => prev.map((a) => a.id === editId ? { ...a, username: form.name, email: form.email, role: form.role } : a));
+      await adminApi.updateAdmin(editId, { schoolId: form.schoolId || undefined }).catch((e) => alert('更新失败: ' + (e?.message || '未知错误')));
     } else {
-      const res = await adminApi.createAdmin({ username: form.name, email: form.email, password: form.password, schoolId: form.schoolId }).catch(() => null);
-      if (res?.data) {
-        setAdmins((prev) => [...prev, res.data]);
+      if (!form.password) { alert('请填写密码'); return; }
+      if (!form.schoolId) { alert('请选择学校'); return; }
+      try {
+        const res = await adminApi.createAdmin({ username: form.name, email: form.email, password: form.password, schoolId: form.schoolId, role: 'admin' });
+        console.log('createAdmin response:', res);
+      } catch (e: any) {
+        alert('创建失败: ' + (e?.message || e?.response?.data?.error || '未知错误'));
+        return;
       }
     }
     setModalOpen(false);
+    fetchAdmins();
   }
 
   async function handleDelete(id: string) {
     await adminApi.deleteAdmin(id).catch(() => {});
-    setAdmins((prev) => prev.filter((a) => a.id !== id));
+    fetchAdmins();
   }
 
   return (
@@ -156,29 +160,7 @@ export default function AdminManagement() {
               </div>
             </div>
           )}
-          <div>
-            <label className="text-[13px] font-medium text-text mb-1.5 block">{t('admin.role')}</label>
-            <div className="flex bg-surface-raised rounded-md p-0.5 gap-0.5">
-              {roles.map((r) => (
-                <button
-                  key={r.value}
-                  type="button"
-                  className={cn(
-                    'flex-1 py-1.5 text-[13px] font-medium rounded-[4px] transition-all duration-micro ease-out-quart',
-                    form.role === r.value
-                      ? 'bg-surface text-text-primary shadow-1'
-                      : 'text-text-tertiary hover:text-text-secondary'
-                  )}
-                  onClick={() => setForm({ ...form, role: r.value })}
-                >
-                  {r.label}
-                </button>
-              ))}
-            </div>
-          </div>
-          {form.role === 'admin' && (
-            <Select label={t('auth.school')} options={schoolOptions} value={form.schoolId} onChange={(v) => setForm({ ...form, schoolId: v })} />
-          )}
+          <Select label={t('auth.school')} options={schoolOptions} value={form.schoolId} onChange={(v) => setForm({ ...form, schoolId: v })} />
         </div>
       </Modal>
     </div>

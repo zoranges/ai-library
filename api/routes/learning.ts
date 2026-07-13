@@ -159,7 +159,7 @@ router.get('/highlights', verifyToken, async (req: Request, res: Response): Prom
 router.post('/highlights', verifyToken, async (req: Request, res: Response): Promise<void> => {
   try {
     const userId = req.user!.userId;
-    const { bookId, text, color, page, note } = req.body;
+    const { bookId, text, color, page, note, startOffset } = req.body;
 
     if (!bookId || !text || page === undefined) {
       res.status(400).json({ success: false, error: 'bookId, text, and page are required' });
@@ -168,8 +168,8 @@ router.post('/highlights', verifyToken, async (req: Request, res: Response): Pro
 
     const id = uuidv4();
     await run(
-      'INSERT INTO highlights (id, userId, bookId, text, color, page, note) VALUES (?, ?, ?, ?, ?, ?, ?)',
-      [id, userId, bookId, text, color || '#FFEB3B', page, note || null]
+      'INSERT INTO highlights (id, userId, bookId, text, color, page, note, start_offset) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+      [id, userId, bookId, text, color || '#FFEB3B', page, note || null, typeof startOffset === 'number' ? startOffset : null]
     );
 
     const highlight = await queryOne('SELECT * FROM highlights WHERE id = ?', [id]);

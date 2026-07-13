@@ -2,11 +2,13 @@ import { Router, type Request, type Response } from 'express';
 import { v4 as uuidv4 } from 'uuid';
 import { queryAll, queryOne, run, safeJsonParse } from '../db/database.js';
 import { verifyToken } from '../middleware/auth.js';
+import { checkAndUnlockAchievements } from '../services/achievementChecker.js';
+import { runBookAgent } from '../services/bookAgent.js';
 
 const router = Router();
 
-const AI_API_KEY = process.env.ALIBABA_API_KEY || '';
-const AI_BASE_URL = 'https://dashscope.aliyuncs.com/compatible-mode/v1';
+const AI_API_KEY = process.env.DEEPSEEK_API_KEY || '';
+const AI_BASE_URL = 'https://api.deepseek.com/v1';
 
 async function getAIModel(): Promise<string> {
   try {
@@ -15,7 +17,7 @@ async function getAIModel(): Promise<string> {
   } catch {
     // fallback to default
   }
-  return 'qwen-plus';
+  return 'deepseek-chat';
 }
 
 const SYSTEM_PROMPT = `你是一个专业的AI阅读助手，帮助用户理解书籍内容。你的能力包括：
@@ -24,8 +26,17 @@ const SYSTEM_PROMPT = `你是一个专业的AI阅读助手，帮助用户理解�
 3. 翻译文本（中英互译）
 4. 回答关于书籍的问题
 5. 生成阅读理解测验题
+6. 根据用户兴趣推荐书籍——当用户想找书时，你会收到相关书籍列表，请根据列表为用户做个性化推荐
 
-请用清晰、准确、友好的方式回答。如果涉及书籍内容，请结合上下文给出深入分析。`;
+请用清晰、准确、友好的方式回答。如果涉及书籍内容，请结合上下文给出深入分析。
+推荐书籍时，简要介绍每本书的亮点和推荐理由，引导用户点击查看详情。`;
+
+const HOMEPAGE_PROMPT = `你是一个友好的AI阅读助手小精灵，在图书馆首页帮助用户发现好书。你的特点：
+- 热情、活泼、鼓励用户阅读
+- 当用户表达阅读兴趣（如想看某类书、某个主题），你会收到匹配的书籍列表
+- 根据匹配的书籍，个性化推荐2-3本最合适的，简要说明每本书为什么适合用户
+- 如果没有完全匹配的书，诚实地告诉用户并建议尝试其他关键词
+- 回答简短精炼，每本书推荐不超过2句话`;
 
 async function callAI(messages: Array<{ role: string; content: string }>, options?: { temperature?: number; max_tokens?: number }): Promise<string> {
   const model = await getAIModel();
@@ -54,6 +65,74 @@ async function callAI(messages: Array<{ role: string; content: string }>, option
   return data.choices?.[0]?.message?.content || '';
 }
 
+const STOP_WORDS = new Set([
+  '我', '想', '要', '看', '读', '找', '有', '没有', '什么', '一本', '一些', '关于',
+  '的', '吗', '呢', '吧', '啊', '哦', '嗯', '可以', '能', '帮', '推荐', '介绍',
+  'the', 'a', 'an', 'i', 'want', 'to', 'read', 'find', 'book', 'books', 'about',
+  'for', 'me', 'can', 'you', 'please', 'help', 'recommend', 'some', 'any', 'is', 'are',
+]);
+
+function extractKeywords(message: string): string[] {
+  // Split by common separators
+  const tokens = message
+    .replace(/[，。！？、；：""''（）【】《》\s,.!?;:'"()\[\]{}]+/g, ' ')
+    .split(' ')
+    .map(t => t.trim())
+    .filter(t => t.length >= 1 && !STOP_WORDS.has(t.toLowerCase()));
+
+  // Deduplicate, preserve order
+  const seen = new Set<string>();
+  const result: string[] = [];
+  for (const t of tokens) {
+    const lower = t.toLowerCase();
+    if (!seen.has(lower)) {
+      seen.add(lower);
+      result.push(t);
+    }
+  }
+  return result.slice(0, 8);
+}
+
+async function searchBooks(keywords: string[]): Promise<any[]> {
+  if (!keywords.length) return [];
+
+  const conditions = keywords.map(() => '(b.title LIKE ? OR b.author LIKE ? OR b.description LIKE ? OR b.tags LIKE ?)');
+  const sql = `SELECT b.id, b.title, b.author, b.coverUrl, b.description, b.rating, b.pageCount, b.difficulty,
+                      c.name as categoryName, c.icon as categoryIcon, c.color as categoryColor
+               FROM books b
+               LEFT JOIN book_categories c ON b.categoryId = c.id
+               WHERE b.isActive = 1 AND (${conditions.join(' OR ')})
+               ORDER BY b.rating DESC, b.readCount DESC
+               LIMIT 10`;
+
+  const params: string[] = [];
+  for (const kw of keywords) {
+    const term = `%${kw}%`;
+    params.push(term, term, term, term);
+  }
+
+  try {
+    const books = await queryAll(sql, params);
+    return (books || []).map((b: any) => ({
+      ...b,
+      tags: safeJsonParse(b.tags, []),
+      category: b.categoryName ? {
+        id: b.categoryId,
+        name: b.categoryName,
+        icon: b.categoryIcon,
+        color: b.categoryColor,
+      } : null,
+    }));
+  } catch {
+    return [];
+  }
+}
+
+function formatBooksForPrompt(books: any[]): string {
+  return books.map((b, i) =>
+    `${i + 1}. 《${b.title}》 — ${b.author} | 分类: ${b.category?.name || '未分类'} | 难度: ${b.difficulty} | 评分: ${b.rating || '暂无'} | ${b.description ? b.description.slice(0, 120) : ''}`
+  ).join('\n');
+}
 router.post('/chat', verifyToken, async (req: Request, res: Response): Promise<void> => {
   try {
     const { message, bookId, page, pageText } = req.body;
@@ -64,11 +143,48 @@ router.post('/chat', verifyToken, async (req: Request, res: Response): Promise<v
     }
 
     let contextInfo = '';
+    let matchedBooks: any[] = [];
+
     if (bookId) {
       const book = await queryOne('SELECT title, author, description FROM books WHERE id = ?', [bookId]);
       if (book) {
         contextInfo = `\n\n当前阅读的书籍信息：\n书名：《${book.title}》\n作者：${book.author}\n简介：${book.description}`;
         if (page) contextInfo += `\n当前页码：第${page}页`;
+      }
+    } else {
+      // Homepage / no book context: use LangChain ReAct agent for smart book discovery
+      try {
+        const agentResult = await runBookAgent(message);
+        res.json({
+          success: true,
+          data: {
+            id: uuidv4(),
+            role: 'assistant',
+            content: agentResult.message,
+            timestamp: new Date().toISOString(),
+            metadata: {
+              bookId: null,
+              page: null,
+              type: 'chat',
+              books: agentResult.books,
+            },
+          },
+        });
+        return;
+      } catch (agentErr: any) {
+        console.error('Book agent error, falling back to keyword search:', agentErr.message);
+        // Fallback to keyword search
+        const keywords = extractKeywords(message);
+        if (keywords.length > 0) {
+          matchedBooks = await searchBooks(keywords);
+          if (matchedBooks.length > 0) {
+            contextInfo = `\n\n## 以下是图书馆中与用户查询匹配的书籍（请根据此列表推荐）：\n${formatBooksForPrompt(matchedBooks)}`;
+          } else {
+            contextInfo = '\n\n（用户正在图书馆首页寻找书籍，但目前数据库中未找到匹配的结果。请友好地建议用户尝试其他关键词，或推荐一些热门分类。）';
+          }
+        } else {
+          contextInfo = '\n\n（用户正在图书馆首页。如果用户询问书籍推荐但没有明确关键词，请询问他们的兴趣或推荐几个热门分类。）';
+        }
       }
     }
 
@@ -76,26 +192,44 @@ router.post('/chat', verifyToken, async (req: Request, res: Response): Promise<v
       contextInfo += `\n\n当前页面的文本内容：\n${pageText}`;
     }
 
+    const systemPrompt = bookId ? SYSTEM_PROMPT + contextInfo : HOMEPAGE_PROMPT + contextInfo;
+
     const messages = [
-      { role: 'system', content: SYSTEM_PROMPT + contextInfo },
+      { role: 'system', content: systemPrompt },
       { role: 'user', content: message },
     ];
 
     const reply = await callAI(messages);
 
+    const respData: any = {
+      id: uuidv4(),
+      role: 'assistant',
+      content: reply,
+      timestamp: new Date().toISOString(),
+      metadata: {
+        bookId: bookId || null,
+        page: page || null,
+        type: 'chat',
+      },
+    };
+
+    if (matchedBooks.length > 0) {
+      respData.metadata.books = matchedBooks.map(b => ({
+        id: b.id,
+        title: b.title,
+        author: b.author,
+        coverUrl: b.coverUrl,
+        description: b.description,
+        rating: b.rating,
+        pageCount: b.pageCount,
+        difficulty: b.difficulty,
+        category: b.category,
+      }));
+    }
+
     res.json({
       success: true,
-      data: {
-        id: uuidv4(),
-        role: 'assistant',
-        content: reply,
-        timestamp: new Date().toISOString(),
-        metadata: {
-          bookId: bookId || null,
-          page: page || null,
-          type: 'chat',
-        },
-      },
+      data: respData,
     });
   } catch (error) {
     console.error('AI chat error:', error);
@@ -338,6 +472,10 @@ router.post('/quiz/submit', verifyToken, async (req: Request, res: Response): Pr
         [uuidv4(), userId, pointsEarned, 'quiz', `Quiz completed with score ${score}%`, resultId]
       );
     }
+    // Check achievements
+    checkAndUnlockAchievements(userId).then(r => {
+      if (r.unlocked.length > 0) console.log(`User ${userId} unlocked: ${r.unlocked.join(', ')}`);
+    });
 
     res.json({
       success: true,

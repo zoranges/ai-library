@@ -70,6 +70,7 @@ export default function EpubReader({ url, bookId, bookTitle, onProgressChange, o
   const [showBrightness, setShowBrightness] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [retryCount, setRetryCount] = useState(0);
   const [selection, setSelection] = useState<{ text: string; cfiRange: string } | null>(null);
   const [showSelectionMenu, setShowSelectionMenu] = useState(false);
   const [selectionPos, setSelectionPos] = useState({ x: 0, y: 0 });
@@ -96,10 +97,22 @@ export default function EpubReader({ url, bookId, bookTitle, onProgressChange, o
   useEffect(() => {
     if (!url) return;
 
-    const book = ePub(encodeURI(url));
+    let cancelled = false;
+    const LOADING_TIMEOUT = 30000;
+    let timeoutId: ReturnType<typeof setTimeout>;
+
+    const book = ePub(url);
     bookRef.current = book;
 
-    book.ready.then(() => {
+    const timeout = new Promise((_, reject) => {
+      timeoutId = setTimeout(() => reject(new Error('Book loading timed out')), LOADING_TIMEOUT);
+    });
+
+    Promise.race([book.ready, timeout])
+      .then(() => {
+      clearTimeout(timeoutId!);
+      if (cancelled) return;
+
       const rendition = book.renderTo(readerAreaRef.current!, {
         width: '100%',
         height: '100%',
@@ -171,6 +184,7 @@ export default function EpubReader({ url, bookId, bookTitle, onProgressChange, o
       });
 
       book.locations.generate(1024).then(() => {
+        if (cancelled) return;
         setTotalLocations(book.locations.length());
         if (currentProgress?.lastPosition) {
           rendition.display(currentProgress.lastPosition);
@@ -178,6 +192,12 @@ export default function EpubReader({ url, bookId, bookTitle, onProgressChange, o
           rendition.display();
         }
         setLoading(false);
+      }).catch((err: any) => {
+        console.error('EPUB locations generation error:', err);
+        if (!cancelled) {
+          setError(t('common.loading') + ': ' + (err?.message || 'Failed to parse book content'));
+          setLoading(false);
+        }
       });
 
       rendition.on('click', () => {
@@ -185,12 +205,16 @@ export default function EpubReader({ url, bookId, bookTitle, onProgressChange, o
         setShowFontSize(false);
       });
     }).catch((err: any) => {
+      clearTimeout(timeoutId!);
+      if (cancelled) return;
       console.error('EPUB loading error:', err);
       setError(t('common.loading') + ': ' + (err?.message || ''));
       setLoading(false);
     });
 
     return () => {
+      cancelled = true;
+      clearTimeout(timeoutId!);
       if (renditionRef.current) {
         renditionRef.current.destroy();
         renditionRef.current = null;
@@ -200,7 +224,7 @@ export default function EpubReader({ url, bookId, bookTitle, onProgressChange, o
         bookRef.current = null;
       }
     };
-  }, [url]);
+  }, [url, retryCount]);
 
   const quizPromptShownRef = useRef(false);
 
@@ -352,10 +376,20 @@ export default function EpubReader({ url, bookId, bookTitle, onProgressChange, o
             </div>
             <h2 className="text-xl font-semibold mb-2" style={{ color: theme.text }}>{t('common.error', { defaultValue: 'Cannot open file' })}</h2>
             <p className="text-sm leading-relaxed mb-8" style={{ color: theme.text, opacity: 0.5 }}>{error}</p>
-            <button onClick={onNavigateBack} className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-medium transition-colors" style={{ color: theme.text, background: themeMode === 'dark' ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)' }}>
-              <ChevronLeft className="w-4 h-4" strokeWidth={1.5} />
-              {t('common.back')}
-            </button>
+            <div className="flex items-center justify-center gap-3">
+              <button onClick={onNavigateBack} className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-medium transition-colors" style={{ color: theme.text, background: themeMode === 'dark' ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)' }}>
+                <ChevronLeft className="w-4 h-4" strokeWidth={1.5} />
+                {t('common.back')}
+              </button>
+              <button
+                onClick={() => { setError(null); setLoading(true); setRetryCount(c => c + 1); }}
+                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-semibold text-white transition-colors hover:opacity-90"
+                style={{ background: 'linear-gradient(135deg, #6366f1, #8b5cf6)' }}
+              >
+                <Sparkles className="w-4 h-4" strokeWidth={1.5} />
+                {t('common.retry', { defaultValue: '重试' })}
+              </button>
+            </div>
           </div>
         </div>
       </div>
