@@ -1,5 +1,5 @@
 import OSS from 'ali-oss';
-import AgentKeepalive = require('agentkeepalive');
+import * as AgentKeepalive from 'agentkeepalive';
 import type { StorageProvider } from './interface.js';
 
 const HttpsAgentKeepalive = AgentKeepalive.HttpsAgent;
