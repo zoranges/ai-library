@@ -1069,7 +1069,7 @@ router.put('/students/:id', requireRole('admin', 'super_admin'), async (req: Req
   }
 });
 
-router.delete('/students/:id', requireRole('super_admin'), async (req: Request, res: Response): Promise<void> => {
+router.delete('/students/:id', requireRole('admin', 'super_admin'), async (req: Request, res: Response): Promise<void> => {
   try {
     const studentId = req.params.id;
     const existing = await queryOne("SELECT id FROM users WHERE id = ? AND role = 'student'", [studentId]);
@@ -2061,7 +2061,7 @@ router.get('/books', async (req: Request, res: Response): Promise<void> => {
   }
 });
 
-router.put('/books/batch-move', requireRole('admin', 'super_admin'), async (req: Request, res: Response): Promise<void> => {
+router.put('/books/batch-move', requireRole('super_admin'), async (req: Request, res: Response): Promise<void> => {
   try {
     const { bookIds, categoryId } = req.body;
     if (!Array.isArray(bookIds) || bookIds.length === 0 || !categoryId) {
@@ -2100,7 +2100,7 @@ router.get('/books/categories', async (_req: Request, res: Response): Promise<vo
   }
 });
 
-router.post('/books/categories', requireRole('admin', 'super_admin'), async (req: Request, res: Response): Promise<void> => {
+router.post('/books/categories', requireRole('super_admin'), async (req: Request, res: Response): Promise<void> => {
   try {
     const { name, icon, color, parentId, sortOrder } = req.body;
     if (!name || !name.trim()) {
@@ -2120,7 +2120,7 @@ router.post('/books/categories', requireRole('admin', 'super_admin'), async (req
   }
 });
 
-router.put('/books/categories/reorder', requireRole('admin', 'super_admin'), async (req: Request, res: Response): Promise<void> => {
+router.put('/books/categories/reorder', requireRole('super_admin'), async (req: Request, res: Response): Promise<void> => {
   try {
     const { id, direction } = req.body;
     if (!id || !direction || !['up', 'down'].includes(direction)) {
@@ -2158,7 +2158,7 @@ router.put('/books/categories/reorder', requireRole('admin', 'super_admin'), asy
   }
 });
 
-router.put('/books/categories/:id', requireRole('admin', 'super_admin'), async (req: Request, res: Response): Promise<void> => {
+router.put('/books/categories/:id', requireRole('super_admin'), async (req: Request, res: Response): Promise<void> => {
   try {
     const { id } = req.params;
     const existing = await queryOne('SELECT id FROM book_categories WHERE id = ?', [id]);
@@ -2192,7 +2192,7 @@ router.put('/books/categories/:id', requireRole('admin', 'super_admin'), async (
   }
 });
 
-router.delete('/books/categories/:id', requireRole('admin', 'super_admin'), async (req: Request, res: Response): Promise<void> => {
+router.delete('/books/categories/:id', requireRole('super_admin'), async (req: Request, res: Response): Promise<void> => {
   try {
     const { id } = req.params;
     const existing = await queryOne('SELECT id FROM book_categories WHERE id = ?', [id]);
@@ -2225,7 +2225,7 @@ router.delete('/books/categories/:id', requireRole('admin', 'super_admin'), asyn
   }
 });
 
-router.post('/books', requireRole('admin', 'super_admin'), async (req: Request, res: Response): Promise<void> => {
+router.post('/books', requireRole('super_admin'), async (req: Request, res: Response): Promise<void> => {
   try {
     const { title, author, isbn, publisher, description, categoryId, language, fileType, coverUrl, fileUrl, difficulty, pageCount, copyright, publishDate } = req.body;
 
@@ -2326,7 +2326,7 @@ function singleBookUploadMiddleware(req: Request, res: Response, next: NextFunct
 }
 
 // ── POST /books/upload ──
-router.post('/books/upload', requireRole('admin', 'super_admin'), singleBookUploadMiddleware, async (req: Request, res: Response): Promise<void> => {
+router.post('/books/upload', requireRole('super_admin'), singleBookUploadMiddleware, async (req: Request, res: Response): Promise<void> => {
   try {
     const files = req.files as { [fieldname: string]: Express.Multer.File[] } | undefined;
     const bookFile = files?.['file']?.[0];
@@ -2422,7 +2422,7 @@ router.post('/books/upload', requireRole('admin', 'super_admin'), singleBookUplo
   }
 });
 
-router.put('/books/:id', requireRole('admin', 'super_admin'), async (req: Request, res: Response): Promise<void> => {
+router.put('/books/:id', requireRole('super_admin'), async (req: Request, res: Response): Promise<void> => {
   try {
     const existing = await queryOne('SELECT id FROM books WHERE id = ?', [req.params.id]);
     if (!existing) {
@@ -2463,7 +2463,7 @@ router.put('/books/:id', requireRole('admin', 'super_admin'), async (req: Reques
   }
 });
 
-router.delete('/books/:id', requireRole('admin', 'super_admin'), async (req: Request, res: Response): Promise<void> => {
+router.delete('/books/:id', requireRole('super_admin'), async (req: Request, res: Response): Promise<void> => {
   try {
     const existing = await queryOne('SELECT id, title, fileUrl, coverUrl FROM books WHERE id = ?', [req.params.id]);
     if (!existing) {
@@ -2509,7 +2509,7 @@ const coverUpload = multer({
   },
 });
 
-router.put('/books/:id/cover', requireRole('admin', 'super_admin'), coverUpload.single('cover'), async (req: Request, res: Response): Promise<void> => {
+router.put('/books/:id/cover', requireRole('super_admin'), coverUpload.single('cover'), async (req: Request, res: Response): Promise<void> => {
   try {
     const existing = await queryOne('SELECT id, title, coverUrl FROM books WHERE id = ?', [req.params.id]);
     if (!existing) {
@@ -2544,7 +2544,7 @@ router.put('/books/:id/cover', requireRole('admin', 'super_admin'), coverUpload.
   }
 });
 
-router.delete('/books/:id/cover', requireRole('admin', 'super_admin'), async (req: Request, res: Response): Promise<void> => {
+router.delete('/books/:id/cover', requireRole('super_admin'), async (req: Request, res: Response): Promise<void> => {
   try {
     const existing = await queryOne('SELECT id, title, coverUrl FROM books WHERE id = ?', [req.params.id]);
     if (!existing) {
@@ -2571,7 +2571,7 @@ router.delete('/books/:id/cover', requireRole('admin', 'super_admin'), async (re
 // AI CONFIG CRUD
 // ============================================================
 
-router.get('/ai-config', requireRole('admin', 'super_admin'), async (req: Request, res: Response): Promise<void> => {
+router.get('/ai-config', requireRole('super_admin'), async (req: Request, res: Response): Promise<void> => {
   try {
     const configs = await queryAll(
       `SELECT ac.*, u.username as updatedByName
