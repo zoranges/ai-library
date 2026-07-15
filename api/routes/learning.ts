@@ -2,6 +2,7 @@ import { Router, type Request, type Response } from 'express';
 import { v4 as uuidv4 } from 'uuid';
 import { queryAll, queryOne, run } from '../db/database.js';
 import { verifyToken } from '../middleware/auth.js';
+import { awardHighlightOrNote } from '../services/pointsService.js';
 
 const router = Router();
 
@@ -173,6 +174,7 @@ router.post('/highlights', verifyToken, async (req: Request, res: Response): Pro
     );
 
     const highlight = await queryOne('SELECT * FROM highlights WHERE id = ?', [id]);
+    awardHighlightOrNote(userId);
     res.status(201).json({ success: true, data: highlight });
   } catch (error) {
     res.status(500).json({ success: false, error: 'Failed to create highlight' });
@@ -292,6 +294,7 @@ router.post('/notes', verifyToken, async (req: Request, res: Response): Promise<
     );
 
     const note = await queryOne('SELECT * FROM notes WHERE id = ?', [id]);
+    awardHighlightOrNote(userId);
     res.status(201).json({ success: true, data: note });
   } catch (error) {
     res.status(500).json({ success: false, error: 'Failed to create note' });

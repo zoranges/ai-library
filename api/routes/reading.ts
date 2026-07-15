@@ -3,6 +3,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { queryAll, queryOne, run } from '../db/database.js';
 import { verifyToken } from '../middleware/auth.js';
 import { checkAndUnlockAchievements, calculateStreak, calculateLongestStreak } from '../services/achievementChecker.js';
+import { awardDailyReading, awardStreakBonus, awardEffectiveReading } from '../services/pointsService.js';
 
 const router = Router();
 
@@ -108,13 +109,8 @@ router.post('/progress', verifyToken, async (req: Request, res: Response): Promi
       await run('UPDATE books SET readCount = readCount + 1 WHERE id = ?', [bookId]);
     }
 
-    // Only award completion bonus if newly completed (wasn't already completed before)
+    // Completion bonus is now awarded via quiz completion (awardBookCompletionWithQuiz)
     if (isCompleted && !wasAlreadyCompleted) {
-      await run('UPDATE users SET points = points + 10 WHERE id = ?', [userId]);
-      await run(
-        'INSERT INTO points (id, userId, points, type, description, referenceId) VALUES (?, ?, ?, ?, ?, ?)',
-        [uuidv4(), userId, 10, 'reading', 'Completed reading a book', bookId]
-      );
       // Check achievements
       checkAndUnlockAchievements(userId).then(r => {
         if (r.unlocked.length > 0) console.log(`User ${userId} unlocked: ${r.unlocked.join(', ')}`);
@@ -166,14 +162,10 @@ router.post('/sessions', verifyToken, async (req: Request, res: Response): Promi
       [sessionId, userId, bookId, startPage, endPage, duration, now, now]
     );
 
-    const pointsEarned = Math.floor(duration / 60) * 2;
-    if (pointsEarned > 0) {
-      await run('UPDATE users SET points = points + ? WHERE id = ?', [pointsEarned, userId]);
-      await run(
-        'INSERT INTO points (id, userId, points, type, description, referenceId) VALUES (?, ?, ?, ?, ?, ?)',
-        [uuidv4(), userId, pointsEarned, 'reading', `Reading session: ${duration} seconds`, sessionId]
-      );
-    }
+    // New points system: daily reading, streak, effective reading
+    awardDailyReading(userId);
+    awardStreakBonus(userId);
+    awardEffectiveReading(userId, duration, startPage, endPage);
     // Check achievements
     checkAndUnlockAchievements(userId).then(r => {
       if (r.unlocked.length > 0) console.log(`User ${userId} unlocked: ${r.unlocked.join(', ')}`);

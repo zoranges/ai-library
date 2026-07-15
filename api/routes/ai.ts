@@ -4,6 +4,7 @@ import { queryAll, queryOne, run, safeJsonParse } from '../db/database.js';
 import { verifyToken } from '../middleware/auth.js';
 import { checkAndUnlockAchievements } from '../services/achievementChecker.js';
 import { runBookAgent } from '../services/bookAgent.js';
+import { awardAiInteraction, awardBookCompletionWithQuiz } from '../services/pointsService.js';
 
 const router = Router();
 
@@ -135,6 +136,7 @@ function formatBooksForPrompt(books: any[]): string {
 }
 router.post('/chat', verifyToken, async (req: Request, res: Response): Promise<void> => {
   try {
+    const userId = req.user!.userId;
     const { message, bookId, page, pageText } = req.body;
 
     if (!message) {
@@ -155,6 +157,7 @@ router.post('/chat', verifyToken, async (req: Request, res: Response): Promise<v
       // Homepage / no book context: use LangChain ReAct agent for smart book discovery
       try {
         const agentResult = await runBookAgent(message);
+        awardAiInteraction(userId);
         res.json({
           success: true,
           data: {
@@ -226,6 +229,8 @@ router.post('/chat', verifyToken, async (req: Request, res: Response): Promise<v
         category: b.category,
       }));
     }
+
+    awardAiInteraction(userId);
 
     res.json({
       success: true,
@@ -448,15 +453,8 @@ router.post('/quiz/submit', verifyToken, async (req: Request, res: Response): Pr
     ).length;
     const score = totalQuestions > 0 ? Math.round((correctCount / totalQuestions) * 100) : 0;
 
-    // Points: 5 questions with >= 3 correct = 1 point; non-5 handled proportionally (>= 60% = 1 point)
+    // Points: +15 for completing book + answering quiz
     let pointsEarned = 0;
-    if (totalQuestions === 5 && correctCount >= 3) {
-      pointsEarned = 1;
-    } else if (totalQuestions > 0 && totalQuestions !== 5) {
-      if (correctCount / totalQuestions >= 0.6) {
-        pointsEarned = 1;
-      }
-    }
 
     const resultId = uuidv4();
 
@@ -465,13 +463,8 @@ router.post('/quiz/submit', verifyToken, async (req: Request, res: Response): Pr
       [resultId, userId, bookId, score, totalQuestions, correctCount, timeSpent || 0, JSON.stringify(answers)]
     );
 
-    if (pointsEarned > 0) {
-      await run('UPDATE users SET points = points + ? WHERE id = ?', [pointsEarned, userId]);
-      await run(
-        'INSERT INTO points (id, userId, points, type, description, referenceId) VALUES (?, ?, ?, ?, ?, ?)',
-        [uuidv4(), userId, pointsEarned, 'quiz', `Quiz completed with score ${score}%`, resultId]
-      );
-    }
+    const awardedCompletion = await awardBookCompletionWithQuiz(userId, bookId);
+    if (awardedCompletion) pointsEarned = 15;
     // Check achievements
     checkAndUnlockAchievements(userId).then(r => {
       if (r.unlocked.length > 0) console.log(`User ${userId} unlocked: ${r.unlocked.join(', ')}`);
