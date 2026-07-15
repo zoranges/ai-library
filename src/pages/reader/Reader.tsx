@@ -747,11 +747,11 @@ export default function Reader() {
           </div>
         </div>
 
-        {/* Floating prev / next buttons */}
+        {/* Floating prev / next buttons — fixed to viewport for mobile zoom */}
         <button
           onClick={() => goToPage(currentPage - 1)}
           disabled={currentPage <= 1}
-          className="absolute left-4 top-1/2 -translate-y-1/2 w-12 h-12 rounded-2xl flex items-center justify-center transition-all duration-300 disabled:opacity-0 disabled:pointer-events-none disabled:scale-75 hover:scale-105 backdrop-blur-md group"
+          className="fixed left-4 top-1/2 -translate-y-1/2 w-12 h-12 rounded-2xl flex items-center justify-center transition-all duration-300 disabled:opacity-0 disabled:pointer-events-none disabled:scale-75 hover:scale-105 backdrop-blur-md group z-50"
           style={{
             background: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(255,255,255,0.75)',
             color: theme.text,
@@ -764,7 +764,7 @@ export default function Reader() {
         <button
           onClick={() => goToPage(currentPage + 1)}
           disabled={currentPage >= totalPages}
-          className="absolute right-4 top-1/2 -translate-y-1/2 w-12 h-12 rounded-2xl flex items-center justify-center transition-all duration-300 disabled:opacity-0 disabled:pointer-events-none disabled:scale-75 hover:scale-105 backdrop-blur-md group"
+          className="fixed right-4 top-1/2 -translate-y-1/2 w-12 h-12 rounded-2xl flex items-center justify-center transition-all duration-300 disabled:opacity-0 disabled:pointer-events-none disabled:scale-75 hover:scale-105 backdrop-blur-md group z-50"
           style={{
             background: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(255,255,255,0.75)',
             color: theme.text,

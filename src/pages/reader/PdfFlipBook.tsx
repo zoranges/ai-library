@@ -322,6 +322,27 @@ const PdfFlipBook = forwardRef<PdfFlipBookHandle, PdfFlipBookProps>(
       };
     }, []);
 
+    // Touch swipe tracking for mobile/tablet zoom
+    const touchStartX = useRef(0);
+    const touchStartY = useRef(0);
+
+    const handleTouchStart = useCallback((e: React.TouchEvent) => {
+      if (e.touches.length === 1) {
+        touchStartX.current = e.touches[0].clientX;
+        touchStartY.current = e.touches[0].clientY;
+      }
+    }, []);
+
+    const handleTouchEnd = useCallback((e: React.TouchEvent) => {
+      const dx = (e.changedTouches[0]?.clientX ?? 0) - touchStartX.current;
+      const dy = (e.changedTouches[0]?.clientY ?? 0) - touchStartY.current;
+      // Only trigger page flip if horizontal swipe exceeds vertical (avoid scroll conflicts)
+      if (Math.abs(dx) > Math.abs(dy) * 1.5 && Math.abs(dx) > 50) {
+        if (dx < 0 && currentPage < pdfDoc.numPages) onPageChange(currentPage + 1);
+        if (dx > 0 && currentPage > 1) onPageChange(currentPage - 1);
+      }
+    }, [currentPage, pdfDoc.numPages, onPageChange]);
+
     // Click to flip
     const handleClick = useCallback((e: React.MouseEvent) => {
       const target = e.target as HTMLElement;
@@ -353,8 +374,10 @@ const PdfFlipBook = forwardRef<PdfFlipBookHandle, PdfFlipBookProps>(
       <div ref={containerRef} className="inline-flex flex-col items-center select-none">
         <div
           className="relative shadow-lg"
-          style={{ width: pageWidth, height: pageHeight, background: pageBg, borderRadius: '4px 8px 8px 4px', boxShadow: '0 4px 24px rgba(0,0,0,0.1), 0 0 0 1px rgba(0,0,0,0.04)' }}
+          style={{ width: pageWidth, height: pageHeight, background: pageBg, borderRadius: '4px 8px 8px 4px', boxShadow: '0 4px 24px rgba(0,0,0,0.1), 0 0 0 1px rgba(0,0,0,0.04)', touchAction: 'pan-y' }}
           onClick={handleClick}
+          onTouchStart={handleTouchStart}
+          onTouchEnd={handleTouchEnd}
         >
           <img
             src={imgSrc}
