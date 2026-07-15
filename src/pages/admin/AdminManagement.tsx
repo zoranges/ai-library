@@ -25,7 +25,8 @@ export default function AdminManagement() {
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
-  const [form, setForm] = useState({ name: '', email: '', password: '', schoolId: '' });
+  const [form, setForm] = useState({ name: '', email: '', password: '', schoolId: '', role: 'admin' as 'admin' | 'super_admin' });
+  const hasSuperAdmin = admins.some((a) => a.role === 'super_admin');
 
   const fetchAdmins = useCallback(() => {
     setLoading(true);
@@ -48,7 +49,7 @@ export default function AdminManagement() {
 
   function openAdd() {
     setEditId(null);
-    setForm({ name: '', email: '', password: '', schoolId: '' });
+    setForm({ name: '', email: '', password: '', schoolId: '', role: 'admin' });
     setModalOpen(true);
   }
 
@@ -56,7 +57,7 @@ export default function AdminManagement() {
     const a = admins.find((x) => x.id === id);
     if (a) {
       setEditId(id);
-      setForm({ name: a.username || a.user?.username || '', email: a.email || a.user?.email || '', password: '', schoolId: a.schoolId || '' });
+      setForm({ name: a.username || a.user?.username || '', email: a.email || a.user?.email || '', password: '', schoolId: a.schoolId || '', role: a.role || 'admin' });
       setModalOpen(true);
     }
   }
@@ -69,7 +70,7 @@ export default function AdminManagement() {
       if (!form.password) { alert('请填写密码'); return; }
       if (!form.schoolId) { alert('请选择学校'); return; }
       try {
-        const res = await adminApi.createAdmin({ username: form.name, email: form.email, password: form.password, schoolId: form.schoolId, role: 'admin' });
+        const res = await adminApi.createAdmin({ username: form.name, email: form.email, password: form.password, schoolId: form.schoolId, role: form.role });
         console.log('createAdmin response:', res);
       } catch (e: any) {
         alert('创建失败: ' + (e?.message || e?.response?.data?.error || '未知错误'));
@@ -161,6 +162,17 @@ export default function AdminManagement() {
             </div>
           )}
           <Select label={t('auth.school')} options={schoolOptions} value={form.schoolId} onChange={(v) => setForm({ ...form, schoolId: v })} />
+          {!editId && (
+            <Select
+              label={t('admin.role')}
+              options={[
+                { value: 'admin', label: t('admin.schoolAdmin') },
+                { value: 'super_admin', label: t('admin.superAdmin'), disabled: hasSuperAdmin },
+              ]}
+              value={form.role}
+              onChange={(v) => setForm({ ...form, role: v as 'admin' | 'super_admin' })}
+            />
+          )}
         </div>
       </Modal>
     </div>
