@@ -289,7 +289,7 @@ export interface ChatMessage {
   metadata?: {
     bookId?: string;
     page?: number;
-    type?: 'explain' | 'define' | 'translate' | 'chat';
+    type?: 'explain' | 'define' | 'translate' | 'chat' | 'voice';
     books?: Array<{
       id: string;
       title: string;

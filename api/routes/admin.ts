@@ -818,9 +818,13 @@ router.get('/students/:id/report', async (req: Request, res: Response): Promise<
     );
 
     // Reading history with book details
-    let historySql = `SELECT rp.*, b.title as bookTitle, b.author as bookAuthor, b.coverUrl as bookCover
+    let historySql = `SELECT rp.*, b.title as bookTitle, b.author as bookAuthor, b.coverUrl as bookCover,
+      b.isbn as bookIsbn, b.publisher as bookPublisher, b.publishDate as bookPublishDate,
+      b.language as bookLanguage, b.pageCount as bookPageCount, b.fileType as bookType,
+      c.name as categoryName
       FROM reading_progress rp
       JOIN books b ON rp.bookId = b.id
+      LEFT JOIN book_categories c ON b.categoryId = c.id
       WHERE rp.userId = ?`;
     const historyParams: unknown[] = [studentId];
     if (startDate) {
@@ -2850,9 +2854,13 @@ router.get('/export/student-report/:id', async (req: Request, res: Response): Pr
 
     // Reading history
     const readingHistory = await queryAll(
-      `SELECT rp.*, b.title as bookTitle, b.author as bookAuthor, b.coverUrl as bookCover
+      `SELECT rp.*, b.title as bookTitle, b.author as bookAuthor, b.coverUrl as bookCover,
+       b.isbn as bookIsbn, b.publisher as bookPublisher, b.publishDate as bookPublishDate,
+       b.language as bookLanguage, b.pageCount as bookPageCount, b.fileType as bookType,
+       c.name as categoryName
        FROM reading_progress rp
        JOIN books b ON rp.bookId = b.id
+       LEFT JOIN book_categories c ON b.categoryId = c.id
        WHERE rp.userId = ?
        ORDER BY rp.lastReadAt DESC`,
       [studentId]

@@ -22,13 +22,30 @@ export default function BookCover({ book, className, iconClassName }: BookCoverP
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(false);
   const renderRef = useRef(false);
+  const prevBookId = useRef<string | null>(null);
 
   useEffect(() => {
-    if (coverSrc || error) return;
+    const bookChanged = prevBookId.current !== null && prevBookId.current !== book.id;
+    prevBookId.current = book.id;
+
+    if (bookChanged) {
+      setError(false);
+      setLoading(false);
+      renderRef.current = false;
+    }
+
+    const resolved = book.coverUrl || coverCache.get(book.id) || null;
+    if (resolved) {
+      setCoverSrc(resolved);
+      return;
+    }
+
     if (!book.fileUrl || !book.fileType) {
+      setCoverSrc(null);
       setError(true);
       return;
     }
+
     if (renderRef.current) return;
     renderRef.current = true;
     setLoading(true);
@@ -71,7 +88,7 @@ export default function BookCover({ book, className, iconClassName }: BookCoverP
       setError(true);
       setLoading(false);
     }
-  }, [book.fileUrl, book.fileType, book.id, coverSrc, error]);
+  }, [book.fileUrl, book.fileType, book.id, book.coverUrl]);
 
   if (loading) {
     return (

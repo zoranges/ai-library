@@ -1,15 +1,9 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Send, Mic, MicOff, X, BookOpen, Languages, Volume2, HelpCircle, FileText, StopCircle } from 'lucide-react';
+import { Send, Mic, X, BookOpen, Languages, Volume2, HelpCircle, FileText, StopCircle, Loader2 } from 'lucide-react';
 import { useAiStore } from '@/stores/aiStore';
+import { useVoiceInput } from '@/hooks/useVoiceInput';
 import Markdown from '@/components/ui/Markdown';
-
-declare global {
-  interface Window {
-    SpeechRecognition: any;
-    webkitSpeechRecognition: any;
-  }
-}
 
 const QUICK_ACTIONS = [
   { key: 'explain', icon: HelpCircle, prompt: '请帮我解释当前阅读内容中的重点和难点' },
@@ -27,7 +21,6 @@ const QUICK_ACTION_LABELS: Record<string, string> = {
   readaloud: 'ai.readAloud',
 };
 
-const SPEECH_RECOGNITION_LANG = 'zh-CN';
 const SPEECH_SYNTHESIS_LANG = 'zh-CN';
 
 function stripMarkdown(text: string): string {
@@ -58,59 +51,32 @@ export default function AIAssistant({ bookId, currentPage, pageText }: AIAssista
   const { t } = useTranslation();
   const { messages, isLoading, error, sendMessage, toggleOpen } = useAiStore();
   const [input, setInput] = useState('');
-  const [isListening, setIsListening] = useState(false);
   const [speakingMessageId, setSpeakingMessageId] = useState<string | null>(null);
   const [isSpeakingPage, setIsSpeakingPage] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
-  const recognitionRef = useRef<any>(null);
-  const isSupportedRef = useRef(false);
 
-  // Initialize speech recognition
+  const {
+    status: voiceStatus,
+    error: voiceError,
+    transcript: voiceTranscript,
+    duration: voiceDuration,
+    startRecording,
+    stopRecording,
+    clearTranscript,
+    isSupported: voiceSupported,
+  } = useVoiceInput();
+
+  // Append transcript to input field (NOT auto-send, so user can edit)
   useEffect(() => {
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!SpeechRecognition) {
-      isSupportedRef.current = false;
-      return;
-    }
-
-    isSupportedRef.current = true;
-    const recognition = new SpeechRecognition();
-    recognition.continuous = false;
-    recognition.interimResults = false;
-    recognition.lang = SPEECH_RECOGNITION_LANG;
-
-    recognition.onresult = (event: any) => {
-      const transcript = event.results[0][0].transcript;
+    if (voiceTranscript) {
       setInput((prev) => {
         const separator = prev.trim() ? ' ' : '';
-        return prev + separator + transcript;
+        return prev + separator + voiceTranscript;
       });
-      setIsListening(false);
-    };
-
-    recognition.onerror = (event: any) => {
-      console.error('Speech recognition error:', event.error);
-      if (event.error === 'not-allowed') {
-        alert(t('reader.micPermission'));
-      }
-      setIsListening(false);
-    };
-
-    recognition.onend = () => {
-      setIsListening(false);
-    };
-
-    recognitionRef.current = recognition;
-
-    return () => {
-      try {
-        recognition.stop();
-      } catch (_) {
-        // recognition may already be stopped
-      }
-    };
-  }, []);
+      clearTranscript();
+    }
+  }, [voiceTranscript]);
 
   // Scroll to bottom when messages change
   useEffect(() => {
@@ -123,29 +89,6 @@ export default function AIAssistant({ bookId, currentPage, pageText }: AIAssista
       window.speechSynthesis?.cancel();
     };
   }, []);
-
-  function handleMicClick() {
-    if (!isSupportedRef.current) {
-      alert(t('reader.speechNotSupported'));
-      return;
-    }
-
-    const recognition = recognitionRef.current;
-    if (!recognition) return;
-
-    if (isListening) {
-      recognition.stop();
-      setIsListening(false);
-    } else {
-      try {
-        recognition.start();
-        setIsListening(true);
-      } catch (err) {
-        console.error('Failed to start speech recognition:', err);
-        setIsListening(false);
-      }
-    }
-  }
 
   const speakText = useCallback(
     (text: string, onStart: () => void, onEnd: () => void) => {
@@ -379,12 +322,12 @@ export default function AIAssistant({ bookId, currentPage, pageText }: AIAssista
             <input
               ref={inputRef}
               type="text"
-              placeholder={isListening ? t('ai.listening') : t('ai.placeholder')}
+              placeholder={voiceStatus === 'recording' ? t('ai.listening') : t('ai.placeholder')}
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
               className="flex-1 bg-transparent text-sm text-text-primary placeholder:text-text-tertiary focus:outline-none"
-              disabled={isListening}
+              disabled={voiceStatus === 'recording'}
             />
           </div>
           <button
@@ -394,21 +337,38 @@ export default function AIAssistant({ bookId, currentPage, pageText }: AIAssista
           >
             <Send className="w-4 h-4" strokeWidth={1.5} />
           </button>
-          <button
-            onClick={handleMicClick}
-            className={`p-2 rounded-lg transition-colors duration-micro ease-out-quart ${
-              isListening
-                ? 'bg-red-500 text-white animate-pulse'
-                : 'text-text-tertiary hover:text-accent hover:bg-bg-tertiary'
-            }`}
-            title={isListening ? t('ai.stopListening') : t('ai.startListening')}
-          >
-            {isListening ? (
-              <MicOff className="w-4 h-4" strokeWidth={1.5} />
-            ) : (
-              <Mic className="w-4 h-4" strokeWidth={1.5} />
-            )}
-          </button>
+          {voiceSupported && (
+            <button
+              onMouseDown={(e) => { e.preventDefault(); startRecording(); }}
+              onMouseUp={stopRecording}
+              onMouseLeave={() => { if (voiceStatus === 'recording') stopRecording(); }}
+              onTouchStart={(e) => { e.preventDefault(); startRecording(); }}
+              onTouchEnd={stopRecording}
+              disabled={voiceStatus === 'processing'}
+              className={`p-2 rounded-lg transition-colors duration-micro ease-out-quart ${
+                voiceStatus === 'recording'
+                  ? 'bg-red-500 text-white animate-pulse'
+                  : voiceStatus === 'processing'
+                    ? 'bg-bg-tertiary text-text-tertiary'
+                    : 'text-text-tertiary hover:text-accent hover:bg-bg-tertiary'
+              }`}
+              title={
+                voiceStatus === 'recording' ? t('ai.stopListening') :
+                voiceStatus === 'processing' ? t('ai.processing') :
+                t('ai.holdToSpeak')
+              }
+            >
+              {voiceStatus === 'recording' ? (
+                <span className="text-xs font-mono font-bold tabular-nums leading-none">
+                  {Math.floor(voiceDuration / 60)}:{(voiceDuration % 60).toFixed(0).padStart(2, '0')}
+                </span>
+              ) : voiceStatus === 'processing' ? (
+                <Loader2 className="w-4 h-4 animate-spin" strokeWidth={1.5} />
+              ) : (
+                <Mic className="w-4 h-4" strokeWidth={1.5} />
+              )}
+            </button>
+          )}
         </div>
       </div>
     </div>

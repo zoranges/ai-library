@@ -4,7 +4,7 @@ import { aiApi } from '@/utils/api';
 
 function genId(): string {
   try {
-    return genId();
+    return crypto.randomUUID();
   } catch {
     return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
       const r = Math.random() * 16 | 0;
@@ -23,6 +23,7 @@ interface AiState {
   explainText: (text: string, bookId: string, page: number) => Promise<void>;
   defineWord: (word: string, bookId: string) => Promise<void>;
   translateText: (text: string, bookId: string, page: number) => Promise<void>;
+  addVoiceResult: (transcript: string, reply: string, books?: ChatMessage['metadata']['books']) => void;
   clearMessages: () => void;
   toggleOpen: () => void;
   setOpen: (open: boolean) => void;
@@ -135,6 +136,28 @@ export const useAiStore = create<AiState>((set, get) => ({
     } catch (err: any) {
       set({ error: err?.message || '翻译失败', isLoading: false });
     }
+  },
+
+  // Directly add user transcript + agent reply (voice full pipeline, no extra API call)
+  addVoiceResult: (transcript, reply, books) => {
+    const userMessage: ChatMessage = {
+      id: genId(),
+      role: 'user',
+      content: transcript,
+      timestamp: new Date().toISOString(),
+      metadata: { type: 'voice' },
+    };
+    const assistantMessage: ChatMessage = {
+      id: genId(),
+      role: 'assistant',
+      content: reply || '',
+      timestamp: new Date().toISOString(),
+      metadata: { type: 'voice', books: books || [] },
+    };
+    set((state) => ({
+      messages: [...state.messages, userMessage, assistantMessage],
+      isLoading: false,
+    }));
   },
 
   clearMessages: () => set({ messages: [], error: null }),

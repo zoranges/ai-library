@@ -316,10 +316,17 @@ export default function StudentManagement() {
                         const expRes = await adminApi.exportStudentReport(selectedId, params);
                         const data = expRes.data;
                         const rows = (data?.readingHistory || []).map((h: any) => ({
-                          Book: h.bookTitle,
-                          Author: h.bookAuthor,
-                          Progress: `${h.percentage || 0}%`,
-                          Completed: h.isCompleted ? 'Yes' : 'No',
+                          'Book title': h.bookTitle,
+                          'Book type': h.bookType || '',
+                          'Category': h.categoryName || '',
+                          'Number of pages': h.bookPageCount || '',
+                          'ISBN': h.bookIsbn || '',
+                          'Author': h.bookAuthor,
+                          'Publisher': h.bookPublisher || '',
+                          'Year of publication': h.bookPublishDate || '',
+                          'Language': h.bookLanguage || '',
+                          'Progress': `${h.percentage || 0}%`,
+                          'Completed': h.isCompleted ? 'Yes' : 'No',
                           'Last Read': h.lastReadAt ? new Date(h.lastReadAt).toLocaleString() : '',
                         }));
                         exportToExcel(rows, `student-report-${studentInfo?.username || selectedId}-${new Date().toISOString().split('T')[0]}`);

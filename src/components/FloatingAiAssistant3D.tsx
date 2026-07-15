@@ -1,10 +1,11 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
-import { X, Send, Sparkles, Loader2, Volume2, StopCircle, Star, BookOpen } from 'lucide-react';
+import { X, Send, Sparkles, Loader2, Volume2, StopCircle, Star, BookOpen, Mic } from 'lucide-react';
 import { Canvas } from '@react-three/fiber';
 import { Float } from '@react-three/drei';
 import { useAiStore } from '@/stores/aiStore';
+import { useVoiceInput, type VoiceResult } from '@/hooks/useVoiceInput';
 import Markdown from '@/components/ui/Markdown';
 import BookCover from '@/components/BookCover';
 import RobotModel from '@/components/pet3d/RobotModel';
@@ -25,7 +26,7 @@ export default function FloatingAiAssistant3D() {
   const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const [input, setInput] = useState('');
-  const { messages, isLoading, sendMessage, clearMessages } = useAiStore();
+  const { messages, isLoading, sendMessage, clearMessages, addVoiceResult } = useAiStore();
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -62,6 +63,27 @@ export default function FloatingAiAssistant3D() {
 
   // Particles (CSS-based, rendered outside Canvas)
   const [particles, setParticles] = useState<Particle[]>([]);
+
+  // Voice input — full pipeline (stt_only=false): transcript + agent reply in one request
+  const {
+    status: voiceStatus,
+    error: voiceError,
+    transcript: voiceTranscript,
+    duration: voiceDuration,
+    startRecording,
+    stopRecording,
+    clearTranscript,
+    isSupported: voiceSupported,
+  } = useVoiceInput({
+    sttOnly: false,
+    onResult: useCallback((result: VoiceResult) => {
+      if (result.reply) {
+        addVoiceResult(result.transcript, result.reply, result.books);
+      } else {
+        sendMessage(result.transcript);
+      }
+    }, [addVoiceResult, sendMessage]),
+  });
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -589,11 +611,20 @@ export default function FloatingAiAssistant3D() {
 
           {/* Input */}
           <div className="px-3 py-2.5 border-t border-border shrink-0">
+            {voiceError && (
+              <div className="mb-2 px-2.5 py-1.5 bg-red-50 border border-red-200 rounded-lg text-[11px] text-red-700 animate-fade-in">
+                {voiceError}
+              </div>
+            )}
             <div className="flex items-center gap-2">
               <input
                 ref={inputRef}
                 type="text"
-                placeholder={t('ai.placeholder')}
+                placeholder={
+                  voiceStatus === 'recording' ? t('ai.listening') :
+                  voiceStatus === 'processing' ? t('ai.processing') :
+                  t('ai.placeholder')
+                }
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={(e) => {
@@ -602,11 +633,44 @@ export default function FloatingAiAssistant3D() {
                     handleSend();
                   }
                 }}
-                className="flex-1 h-9 bg-bg-secondary rounded-lg border border-border px-3 text-sm text-text-primary placeholder:text-text-tertiary focus:outline-none focus:ring-2 focus:ring-accent/20 focus:border-accent transition-all"
+                disabled={voiceStatus !== 'idle'}
+                className="flex-1 h-9 bg-bg-secondary rounded-lg border border-border px-3 text-sm text-text-primary placeholder:text-text-tertiary focus:outline-none focus:ring-2 focus:ring-accent/20 focus:border-accent transition-all disabled:opacity-50"
               />
+              {voiceSupported && (
+                <button
+                  onMouseDown={(e) => { e.preventDefault(); startRecording(); }}
+                  onMouseUp={stopRecording}
+                  onMouseLeave={() => { if (voiceStatus === 'recording') stopRecording(); }}
+                  onTouchStart={(e) => { e.preventDefault(); startRecording(); }}
+                  onTouchEnd={stopRecording}
+                  disabled={voiceStatus === 'processing'}
+                  title={
+                    voiceStatus === 'recording' ? t('ai.stopListening') :
+                    voiceStatus === 'processing' ? t('ai.processing') :
+                    t('ai.holdToSpeak')
+                  }
+                  className={`p-2 rounded-lg transition-colors duration-micro ease-out-quart ${
+                    voiceStatus === 'recording'
+                      ? 'bg-red-500 text-white animate-pulse'
+                      : voiceStatus === 'processing'
+                        ? 'bg-bg-tertiary text-text-tertiary'
+                        : 'text-text-tertiary hover:text-accent hover:bg-bg-tertiary'
+                  }`}
+                >
+                  {voiceStatus === 'recording' ? (
+                    <span className="text-xs font-mono font-bold tabular-nums leading-none">
+                      {Math.floor(voiceDuration / 60)}:{(voiceDuration % 60).toFixed(0).padStart(2, '0')}
+                    </span>
+                  ) : voiceStatus === 'processing' ? (
+                    <Loader2 className="w-4 h-4 animate-spin" strokeWidth={1.5} />
+                  ) : (
+                    <Mic className="w-4 h-4" strokeWidth={1.5} />
+                  )}
+                </button>
+              )}
               <button
                 onClick={handleSend}
-                disabled={!input.trim() || isLoading}
+                disabled={!input.trim() || isLoading || voiceStatus !== 'idle'}
                 className="p-2 bg-accent text-white rounded-lg hover:bg-accent-hover transition-colors disabled:opacity-40 disabled:pointer-events-none"
               >
                 {isLoading ? <Loader2 className="w-4 h-4 animate-spin" strokeWidth={1.5} /> : <Send className="w-4 h-4" strokeWidth={1.5} />}

@@ -12,6 +12,7 @@ import leaderboardRoutes from './routes/leaderboard.js';
 import adminRoutes from './routes/admin.js';
 import batchRoutes from './routes/batchUpload.js';
 import systemRoutes from './routes/system.js';
+import voiceRoutes from './routes/voice.js';
 import { requestLogger } from './middleware/requestLogger.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -63,6 +64,7 @@ app.use('/api/leaderboard', leaderboardRoutes);
 app.use('/api/admin/batch', batchRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api', systemRoutes);
+app.use('/api', voiceRoutes);
 
 app.get('/api/health', (_req: Request, res: Response): void => {
   res.status(200).json({ success: true, message: 'ok' });

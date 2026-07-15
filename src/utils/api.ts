@@ -257,6 +257,28 @@ export const statsApi = {
     request<any>('/admin/dashboard'),
 };
 
+export const voiceApi = {
+  transcribe: async (audioBlob: Blob): Promise<{ transcript: string; warning?: string }> => {
+    const token = getToken();
+    const formData = new FormData();
+    formData.append('audio', audioBlob, 'recording.webm');
+
+    const res = await fetch(`${BASE_URL}/voice`, {
+      method: 'POST',
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      body: formData,
+    });
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || 'Voice recognition failed');
+    }
+
+    const json = await res.json();
+    return json.data;
+  },
+};
+
 export const aiApi = {
   chat: (data: { message: string; bookId?: string; page?: number; pageText?: string }) =>
     request<{ message: string }>('/ai/chat', {

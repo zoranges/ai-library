@@ -23,18 +23,21 @@ export default function BookDetail() {
   const navigate = useNavigate();
   const { currentBook: book, fetchBookById } = useBookStore();
   const { currentProgress, fetchProgress } = useReadingStore();
-  const [isFavorite, setIsFavorite] = useState(false);
+  const [isFavorite, setIsFavorite] = useState<boolean | null>(null);
   const [favLoading, setFavLoading] = useState(false);
+  const [favError, setFavError] = useState(false);
   const [relatedBooks, setRelatedBooks] = useState<Book[]>([]);
 
   useEffect(() => {
     if (id) {
       fetchBookById(id);
       fetchProgress(id);
+      setFavError(false);
       favoriteApi.checkFavorite(id).then((res) => {
         const data = res.data as any;
         setIsFavorite(data?.isFavorite ?? false);
-      }).catch(() => {
+      }).catch((err) => {
+        console.error('Failed to check favorite status:', err);
         setIsFavorite(false);
       });
       bookApi.getRecommendations(id).then((res) => {
@@ -44,17 +47,25 @@ export default function BookDetail() {
   }, [id]);
 
   async function toggleFavorite() {
-    if (!id) return;
+    if (!id || isFavorite === null) return;
     setFavLoading(true);
+    setFavError(false);
+
+    const wasFavorited = isFavorite;
+
+    // Optimistic update: toggle immediately, revert on failure
+    setIsFavorite(!wasFavorited);
+
     try {
-      if (isFavorite) {
+      if (wasFavorited) {
         await favoriteApi.removeFavorite(id);
       } else {
         await favoriteApi.addFavorite(id);
       }
-      setIsFavorite(!isFavorite);
-    } catch {
-      void 0;
+    } catch (err) {
+      console.error('Failed to toggle favorite:', err);
+      setIsFavorite(wasFavorited); // Revert
+      setFavError(true);
     } finally {
       setFavLoading(false);
     }
@@ -158,10 +169,11 @@ export default function BookDetail() {
               variant="outline"
               icon={<Heart className={`w-4 h-4 ${isFavorite ? 'fill-error text-error' : ''}`} strokeWidth={1.5} />}
               onClick={toggleFavorite}
-              loading={favLoading}
+              loading={favLoading || isFavorite === null}
+              disabled={isFavorite === null}
               className="h-11 rounded-lg"
             >
-              {isFavorite ? t('books.removeFromFavorites') : t('books.addToFavorites')}
+              {favError ? t('books.favoriteFailed', 'Failed, retry') : isFavorite ? t('books.removeFromFavorites') : t('books.addToFavorites')}
             </Button>
           </div>
         </div>

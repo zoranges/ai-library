@@ -7,6 +7,7 @@ import Badge from '@/components/ui/Badge';
 import Select from '@/components/ui/Select';
 import BookCover from '@/components/BookCover';
 import { useBookStore } from '@/stores/bookStore';
+import { favoriteApi } from '@/utils/api';
 import type { BookFilter } from '@/types';
 
 const LANGUAGE_CHIPS = [
@@ -42,11 +43,61 @@ export default function Books() {
   const { books, categories, pagination, filters, isLoading, fetchBooks, fetchCategories, setFilters, setPage } = useBookStore();
   const [searchQuery, setSearchQuery] = useState(filters.search || '');
   const [showFilters, setShowFilters] = useState(false);
+  const [favoriteIds, setFavoriteIds] = useState<Set<string>>(new Set());
+  const [favLoadingIds, setFavLoadingIds] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     fetchCategories();
     fetchBooks();
   }, [filters, pagination.page]);
+
+  useEffect(() => {
+    if (books.length === 0) return;
+    const ids = books.map((b) => b.id);
+    Promise.allSettled(ids.map((id) => favoriteApi.checkFavorite(id)))
+      .then((results) => {
+        const favSet = new Set<string>();
+        results.forEach((r, i) => {
+          if (r.status === 'fulfilled') {
+            const data = (r.value.data as any);
+            if (data?.isFavorite) favSet.add(ids[i]);
+          }
+        });
+        setFavoriteIds(favSet);
+      });
+  }, [books]);
+
+  async function handleToggleFavorite(bookId: string, e: React.MouseEvent) {
+    e.preventDefault();
+    setFavLoadingIds((prev) => new Set(prev).add(bookId));
+
+    const wasFavorited = favoriteIds.has(bookId);
+
+    // Optimistic update: toggle immediately, revert on failure
+    setFavoriteIds((prev) => {
+      const next = new Set(prev);
+      wasFavorited ? next.delete(bookId) : next.add(bookId);
+      return next;
+    });
+
+    try {
+      if (wasFavorited) {
+        await favoriteApi.removeFavorite(bookId);
+      } else {
+        await favoriteApi.addFavorite(bookId);
+      }
+    } catch (err) {
+      console.error('Failed to toggle favorite:', err);
+      // Revert on failure
+      setFavoriteIds((prev) => {
+        const next = new Set(prev);
+        wasFavorited ? next.add(bookId) : next.delete(bookId);
+        return next;
+      });
+    } finally {
+      setFavLoadingIds((prev) => { const next = new Set(prev); next.delete(bookId); return next; });
+    }
+  }
 
   function handleSearch(e: React.FormEvent) {
     e.preventDefault();
@@ -231,10 +282,18 @@ export default function Books() {
                   <BookCover book={book} className="w-full h-full" iconClassName="w-6 h-6 text-text-tertiary/40" />
                   <div className="absolute inset-0 bg-gradient-to-b from-white/10 to-transparent pointer-events-none" />
                   <button
-                    onClick={(e) => { e.preventDefault(); }}
-                    className="absolute bottom-2 right-2 p-1.5 rounded-full bg-white/70 hover:bg-white hover:scale-110 transition-all duration-150 backdrop-blur-sm shadow-1"
+                    onClick={(e) => handleToggleFavorite(book.id, e)}
+                    disabled={favLoadingIds.has(book.id)}
+                    className={`absolute bottom-2 right-2 p-1.5 rounded-full bg-white/70 hover:bg-white hover:scale-110 transition-all duration-150 backdrop-blur-sm shadow-1 ${favLoadingIds.has(book.id) ? 'opacity-50 pointer-events-none' : ''}`}
                   >
-                    <Heart className="w-3.5 h-3.5 text-text-tertiary" strokeWidth={1.5} />
+                    {favLoadingIds.has(book.id) ? (
+                      <div className="w-3.5 h-3.5 border rounded-full animate-spin border-gray-300 border-t-accent" />
+                    ) : (
+                      <Heart
+                        className={`w-3.5 h-3.5 ${favoriteIds.has(book.id) ? 'fill-error text-error' : 'text-text-tertiary'}`}
+                        strokeWidth={1.5}
+                      />
+                    )}
                   </button>
                 </div>
                 <div className="p-3 flex-1 flex flex-col">

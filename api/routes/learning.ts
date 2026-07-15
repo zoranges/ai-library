@@ -123,7 +123,7 @@ router.delete('/favorites/:bookId', verifyToken, async (req: Request, res: Respo
     }
 
     await run('DELETE FROM favorites WHERE userId = ? AND bookId = ?', [userId, bookId]);
-    await run('UPDATE books SET favoriteCount = MAX(0, favoriteCount - 1) WHERE id = ?', [bookId]);
+    await run('UPDATE books SET favoriteCount = GREATEST(0, favoriteCount - 1) WHERE id = ?', [bookId]);
 
     res.json({ success: true, message: 'Favorite removed' });
   } catch (error) {
