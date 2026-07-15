@@ -1329,17 +1329,6 @@ router.post('/admins', requireRole('super_admin'), async (req: Request, res: Res
 
     const role = requestedRole === 'super_admin' ? 'super_admin' : 'admin';
 
-    // Only one super_admin allowed
-    if (role === 'super_admin') {
-      const superAdminExists = await queryOne(
-        "SELECT id FROM admins WHERE role = 'super_admin' AND isActive = 1"
-      );
-      if (superAdminExists) {
-        res.status(409).json({ success: false, error: 'Super admin already exists. Only one super admin is allowed.' });
-        return;
-      }
-    }
-
     const hashedPassword = await bcrypt.hash(password, 10);
     const userId = uuidv4();
     const adminId = uuidv4();

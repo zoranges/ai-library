@@ -26,7 +26,6 @@ export default function AdminManagement() {
   const [modalOpen, setModalOpen] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
   const [form, setForm] = useState({ name: '', email: '', password: '', schoolId: '', role: 'admin' as 'admin' | 'super_admin' });
-  const hasSuperAdmin = admins.some((a) => a.role === 'super_admin');
 
   const fetchAdmins = useCallback(() => {
     setLoading(true);
@@ -167,7 +166,7 @@ export default function AdminManagement() {
               label={t('admin.role')}
               options={[
                 { value: 'admin', label: t('admin.schoolAdmin') },
-                { value: 'super_admin', label: t('admin.superAdmin'), disabled: hasSuperAdmin },
+                { value: 'super_admin', label: t('admin.superAdmin') },
               ]}
               value={form.role}
               onChange={(v) => setForm({ ...form, role: v as 'admin' | 'super_admin' })}
