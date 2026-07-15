@@ -366,6 +366,28 @@ router.post('/translate', verifyToken, async (req: Request, res: Response): Prom
   }
 });
 
+function getQuizPrompt(language: string, difficulty: string | undefined, title: string, author: string, description: string, count: number) {
+  const diffLabels: Record<string, [string, string, string]> = {
+    ms: ['Mudah', 'Sederhana', 'Sukar'],
+    en: ['Easy', 'Medium', 'Hard'],
+    zh: ['简单', '中等', '困难'],
+  };
+
+  const idx = difficulty === 'easy' ? 0 : difficulty === 'hard' ? 2 : 1;
+
+  // Match language by prefix
+  const langKey = Object.keys(diffLabels).find(k => language.toLowerCase().startsWith(k)) || 'en';
+  const label = diffLabels[langKey][idx];
+
+  const prompts: Record<string, string> = {
+    ms: `Sila hasilkan ${count} soalan pemahaman bacaan aneka pilihan bertahap "${label}" untuk buku "${title}" (karya ${author}).\n\nSinopsis buku: ${description}\n\nSila berikan jawapan dalam format JSON seperti berikut:\n{"questions":[{"question":"Soalan","options":["Pilihan A","Pilihan B","Pilihan C","Pilihan D"],"correctAnswer":0,"explanation":"Penjelasan"}]}\n\nSyarat:\n1. Setiap soalan ada 4 pilihan, correctAnswer adalah indeks jawapan betul (0-3)\n2. Soalan harus merangkumi tema, watak, plot dan teknik penulisan buku\n3. Penjelasan harus terperinci`,
+    en: `Generate ${count} multiple-choice reading comprehension questions at "${label}" difficulty for the book "${title}" by ${author}.\n\nBook description: ${description}\n\nReturn the result in JSON format:\n{"questions":[{"question":"Question text","options":["Option A","Option B","Option C","Option D"],"correctAnswer":0,"explanation":"Explanation"}]}\n\nRequirements:\n1. Each question has 4 options, correctAnswer is the index of the correct answer (0-3)\n2. Questions should cover themes, characters, plot, and writing techniques\n3. Explanations should be detailed`,
+    zh: `请为《${title}》（${author}著）生成${count}道"${label}"难度的阅读理解选择题。\n\n书籍简介：${description}\n\n请用JSON格式返回，格式如下：\n{"questions":[{"question":"题目","options":["选项A","选项B","选项C","选项D"],"correctAnswer":0,"explanation":"解析"}]}\n\n要求：\n1. 每题4个选项，correctAnswer为正确选项的索引（0-3）\n2. 题目应涵盖书籍的主题、人物、情节、写作手法等方面\n3. 解析要详细`,
+  };
+
+  return { prompt: prompts[langKey] || prompts.en, diffLabel: label };
+}
+
 router.post('/quiz/generate', verifyToken, async (req: Request, res: Response): Promise<void> => {
   try {
     const { bookId, count = 5, difficulty } = req.body;
@@ -375,18 +397,19 @@ router.post('/quiz/generate', verifyToken, async (req: Request, res: Response): 
       return;
     }
 
-    const book = await queryOne('SELECT title, author, description FROM books WHERE id = ?', [bookId]);
+    const book = await queryOne('SELECT title, author, description, language FROM books WHERE id = ?', [bookId]);
     if (!book) {
       res.status(404).json({ success: false, error: 'Book not found' });
       return;
     }
 
     const numQuestions = Math.min(10, Math.max(1, count));
-    const diffLabel = difficulty === 'easy' ? '简单' : difficulty === 'hard' ? '困难' : '中等';
+    const bookLang = (book.language as string) || 'zh';
+    const { prompt: quizPrompt, diffLabel: diffText } = getQuizPrompt(bookLang, difficulty, book.title as string, book.author as string, book.description as string, numQuestions);
 
     const messages = [
       { role: 'system', content: SYSTEM_PROMPT },
-      { role: 'user', content: `请为《${book.title}》（${book.author}著）生成${numQuestions}道${diffLabel}难度的阅读理解选择题。\n\n书籍简介：${book.description}\n\n请用JSON格式返回，格式如下：\n{"questions":[{"question":"题目","options":["选项A","选项B","选项C","选项D"],"correctAnswer":0,"explanation":"解析"}]}\n\n要求：\n1. 每题4个选项，correctAnswer为正确选项的索引（0-3）\n2. 题目应涵盖书籍的主题、人物、情节、写作手法等方面\n3. 解析要详细` },
+      { role: 'user', content: quizPrompt },
     ];
 
     const result = await callAI(messages, { temperature: 0.5 });
