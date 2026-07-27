@@ -120,6 +120,7 @@ export default function StudentManagement() {
   const readingHistory = report?.readingHistory || [];
   const dailyActivity = report?.dailyActivity || [];
   const langData = report?.languageDistribution;
+  const langCounts: Record<string, number> = report?.languageBookCounts || {};
 
   const activityOptions = [
     { value: '', label: t('admin.allLevels') },
@@ -271,6 +272,23 @@ export default function StudentManagement() {
                         </div>
                       </div>
                     ))}
+                  </div>
+
+                  {/* Books read by language */}
+                  <div className="bg-surface-raised/50 rounded-lg p-3">
+                    <p className="text-[11px] text-text-tertiary mb-2">{t('admin.booksByLanguage')}</p>
+                    <div className="grid grid-cols-3 gap-2">
+                      {[
+                        { code: 'zh', label: t('lang.zh') },
+                        { code: 'ms', label: t('lang.ms') },
+                        { code: 'en', label: t('lang.en') },
+                      ].map((lang) => (
+                        <div key={lang.code} className="text-center">
+                          <p className="text-base font-semibold text-text-primary font-mono">{langCounts[lang.code] || 0}</p>
+                          <p className="text-[11px] text-text-tertiary truncate">{lang.label}</p>
+                        </div>
+                      ))}
+                    </div>
                   </div>
 
                   <div className="border border-border rounded-lg p-3">

@@ -6,11 +6,11 @@ import { useVoiceInput } from '@/hooks/useVoiceInput';
 import Markdown from '@/components/ui/Markdown';
 
 const QUICK_ACTIONS = [
-  { key: 'explain', icon: HelpCircle, prompt: '请帮我解释当前阅读内容中的重点和难点' },
-  { key: 'define', icon: BookOpen, prompt: '请帮我解释当前阅读内容中出现的生词和术语' },
-  { key: 'translate', icon: Languages, prompt: '请帮我翻译当前阅读内容中的关键段落' },
-  { key: 'summarize', icon: FileText, prompt: '请帮我总结当前阅读内容的主要观点' },
-  { key: 'readaloud', icon: Volume2, prompt: '__READ_ALOUD__' },
+  { key: 'explain', icon: HelpCircle, promptKey: 'ai.promptExplain' },
+  { key: 'define', icon: BookOpen, promptKey: 'ai.promptDefine' },
+  { key: 'translate', icon: Languages, promptKey: 'ai.promptTranslate' },
+  { key: 'summarize', icon: FileText, promptKey: 'ai.promptSummarize' },
+  { key: 'readaloud', icon: Volume2, promptKey: '__READ_ALOUD__' },
 ];
 
 const QUICK_ACTION_LABELS: Record<string, string> = {
@@ -21,7 +21,12 @@ const QUICK_ACTION_LABELS: Record<string, string> = {
   readaloud: 'ai.readAloud',
 };
 
-const SPEECH_SYNTHESIS_LANG = 'zh-CN';
+const SPEECH_LANGS: Record<string, string> = {
+  zh: 'zh-CN',
+  en: 'en-US',
+  ms: 'ms-MY',
+  ta: 'ta-IN',
+};
 
 function stripMarkdown(text: string): string {
   return text
@@ -48,7 +53,7 @@ interface AIAssistantProps {
 }
 
 export default function AIAssistant({ bookId, currentPage, pageText }: AIAssistantProps) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { messages, isLoading, error, sendMessage, toggleOpen } = useAiStore();
   const [input, setInput] = useState('');
   const [speakingMessageId, setSpeakingMessageId] = useState<string | null>(null);
@@ -107,7 +112,7 @@ export default function AIAssistant({ bookId, currentPage, pageText }: AIAssista
       }
 
       const utterance = new SpeechSynthesisUtterance(plainText);
-      utterance.lang = SPEECH_SYNTHESIS_LANG;
+      utterance.lang = SPEECH_LANGS[(i18n.language || 'zh').split('-')[0]] || 'en-US';
       utterance.rate = 1.0;
 
       utterance.onstart = () => {
@@ -194,7 +199,7 @@ export default function AIAssistant({ bookId, currentPage, pageText }: AIAssista
     if (isLoading) return;
     const action = QUICK_ACTIONS.find((a) => a.key === key);
     if (!action) return;
-    sendMessage(action.prompt, bookId, currentPage, pageText);
+    sendMessage(t(action.promptKey), bookId, currentPage, pageText);
   }
 
   return (

@@ -529,7 +529,7 @@ export default function EpubReader({ url, bookId, bookTitle, onProgressChange, o
       <div className="flex-1 flex overflow-hidden relative">
         {showOutline && (
           <div
-            className="w-64 shrink-0 border-r overflow-y-auto animate-fade-in"
+            className="w-full sm:w-64 shrink-0 border-r overflow-y-auto animate-fade-in"
             style={{ background: theme.toolbar, borderColor: themeMode === 'dark' ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)' }}
           >
             <div className="flex items-center gap-1 p-2 border-b" style={{ borderColor: themeMode === 'dark' ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)' }}>
@@ -626,7 +626,7 @@ export default function EpubReader({ url, bookId, bookTitle, onProgressChange, o
 
         {aiOpen && (
           <div
-            className="w-[360px] border-l shrink-0 animate-fade-in flex flex-col"
+            className="w-full sm:w-[360px] border-l shrink-0 animate-fade-in flex flex-col"
             style={{
               background: themeMode === 'dark' ? '#1e1e36' : '#fafafe',
               borderColor: themeMode === 'dark' ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)',

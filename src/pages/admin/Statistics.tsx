@@ -155,7 +155,7 @@ export default function Statistics() {
       </div>
 
       {/* Row 1: Stat Cards with sparklines */}
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
         {statCards.map((s, i) => (
           <div key={i} className="relative overflow-hidden bg-surface border border-border rounded-xl p-4 hover:shadow-md transition-all duration-200">
             <div className="flex items-center gap-2 text-text-tertiary text-xs mb-2">

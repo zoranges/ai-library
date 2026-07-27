@@ -6,7 +6,6 @@ import SidebarLayout from '@/components/layout/SidebarLayout';
 import AdminLayout from '@/components/layout/AdminLayout';
 import Home from '@/pages/books/Home';
 import Books from '@/pages/books/BookList';
-import Splash from '@/pages/auth/Splash';
 import Login from '@/pages/auth/Login';
 import Register from '@/pages/auth/Register';
 import ForgotPassword from '@/pages/auth/ForgotPassword';
@@ -58,7 +57,7 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
       </div>
     );
   }
-  if (!isAuthenticated) return <Navigate to="/splash" replace />;
+  if (!isAuthenticated) return <Navigate to="/login" replace />;
   return <>{children}</>;
 }
 
@@ -101,7 +100,6 @@ export default function App() {
   return (
     <BrowserRouter>
       <Routes>
-        <Route path="/splash" element={<Splash />} />
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />

@@ -384,7 +384,7 @@ router.post('/schools', requireRole('super_admin'), async (req: Request, res: Re
 router.put('/schools/:id', requireRole('super_admin'), async (req: Request, res: Response): Promise<void> => {
   try {
     const schoolId = req.params.id;
-    const { name, address, district, state, country, contactPhone, contactEmail, isActive } = req.body;
+    const { name, address, district, state, country, contactPhone, contactEmail, isActive, welcomeImage } = req.body;
 
     const existing = await queryOne('SELECT id FROM schools WHERE id = ?', [schoolId]);
     if (!existing) {
@@ -400,6 +400,7 @@ router.put('/schools/:id', requireRole('super_admin'), async (req: Request, res:
     if (contactPhone !== undefined) await run('UPDATE schools SET contactPhone = ? WHERE id = ?', [contactPhone, schoolId]);
     if (contactEmail !== undefined) await run('UPDATE schools SET contactEmail = ? WHERE id = ?', [contactEmail, schoolId]);
     if (isActive !== undefined) await run('UPDATE schools SET isActive = ? WHERE id = ?', [isActive ? 1 : 0, schoolId]);
+    if (welcomeImage !== undefined) await run('UPDATE schools SET welcomeImage = ? WHERE id = ?', [welcomeImage, schoolId]);
 
     const updated = await queryOne('SELECT * FROM schools WHERE id = ?', [schoolId]);
     res.json({ success: true, data: updated });
@@ -582,7 +583,7 @@ router.get('/schools/:id/analytics', async (req: Request, res: Response): Promis
 
     // Top students in this school
     const topStudents = await queryAll(
-      `SELECT u.id, u.username, u.avatar, u.points, u.level,
+      `SELECT u.id, u.username, u.avatar, u.points, u.totalPoints, u.monthlyPoints, u.yearlyPoints, u.level,
               COUNT(DISTINCT rp.id) as booksRead,
               COUNT(DISTINCT rp2.id) as completedBooks,
               COALESCE(SUM(rs.duration), 0) as totalMinutes
@@ -950,6 +951,20 @@ router.get('/students/:id/report', async (req: Request, res: Response): Promise<
     pointsSql += ' ORDER BY createdAt DESC';
     const points = await queryAll(pointsSql, pointsParams);
 
+    // Book counts by language (zh / ms / en / ta)
+    const languageRows = await queryAll(
+      `SELECT b.language, COUNT(DISTINCT rp.bookId) as count
+       FROM reading_progress rp
+       JOIN books b ON rp.bookId = b.id
+       WHERE rp.userId = ?
+       GROUP BY b.language`,
+      [studentId]
+    );
+    const languageBookCounts: Record<string, number> = {};
+    for (const row of languageRows as Array<{ language: string; count: number }>) {
+      if (row.language) languageBookCounts[row.language] = Number(row.count);
+    }
+
     res.json({
       success: true,
       data: {
@@ -968,6 +983,7 @@ router.get('/students/:id/report', async (req: Request, res: Response): Promise<
         badges,
         points,
         dailyActivity,
+        languageBookCounts,
         dateRange: {
           startDate: startDate || null,
           endDate: endDate || null,

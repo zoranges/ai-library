@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate, Outlet, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import {
-  User, LogOut, Menu, Globe, ChevronDown, Sun, Moon, Bell,
+  User, LogOut, Menu, Globe, ChevronDown, Sun, Moon,
   Home, BookMarked, Trophy, Sparkles, Heart,
   ChevronRight, Settings, Target, Camera, ExternalLink,
 } from 'lucide-react';
@@ -84,7 +84,7 @@ export default function SidebarLayout() {
       {/* Logo */}
       <div className="px-4 py-3 border-b border-white/10 relative z-10 flex justify-center">
         <Link to="/">
-          <img src="/logo.png" alt="AI Library" className="h-28 w-auto" />
+          <img src="/logo.png?v=2" alt="AI Library" className="h-20 sm:h-32 w-auto" />
         </Link>
       </div>
 
@@ -97,7 +97,7 @@ export default function SidebarLayout() {
               key={item.key}
               to={item.path}
               className={cn(
-                'flex items-center gap-4 h-[60px] text-[17px] transition-all duration-300 rounded-xl font-semibold tracking-wide',
+                'flex items-center gap-4 h-[60px] text-[20px] transition-all duration-300 rounded-xl font-semibold tracking-wide',
                 active
                   ? 'text-[#1E3A8A]'
                   : 'text-white hover:bg-white/10 hover:text-white/90',
@@ -128,7 +128,7 @@ export default function SidebarLayout() {
           target="_blank"
           rel="noopener noreferrer"
           className={cn(
-            'flex items-center gap-4 h-[60px] text-[17px] transition-all duration-300 rounded-xl font-semibold tracking-wide',
+            'flex items-center gap-4 h-[60px] text-[20px] transition-all duration-300 rounded-xl font-semibold tracking-wide',
             'text-white hover:bg-white/10 hover:text-white/90',
             collapsed && 'justify-center px-0'
           )}
@@ -173,11 +173,6 @@ export default function SidebarLayout() {
         >
           {isDark ? <Sun className="h-4 w-4 shrink-0" /> : <Moon className="h-4 w-4 shrink-0" />}
           <span>{isDark ? t('common.lightMode') : t('common.darkMode')}</span>
-        </button>
-        <button className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-white/70 hover:bg-white/10 hover:text-white text-sm transition-colors relative">
-          <Bell className="h-4 w-4 shrink-0" />
-          <span>{t('common.notifications', 'Notifications')}</span>
-          <span className="absolute right-2 h-4 w-4 rounded-full bg-red-500 text-white text-[9px] font-bold flex items-center justify-center">3</span>
         </button>
       </div>
 
@@ -299,11 +294,6 @@ export default function SidebarLayout() {
                 {isDark ? <Sun className="h-5 w-5 shrink-0" /> : <Moon className="h-5 w-5 shrink-0" />}
               </button>
 
-              {/* Notifications */}
-              <button className="flex items-center gap-2 px-4 py-2.5 rounded-2xl text-gray-700 hover:bg-gradient-to-br hover:from-blue-50 hover:to-cyan-50 hover:text-[#1565C0] text-sm font-medium transition-all duration-300 hover:shadow-sm relative">
-                <Bell className="h-5 w-5 shrink-0" />
-                <span className="absolute -top-1 -right-1 h-5 w-5 rounded-full bg-gradient-to-br from-red-500 to-orange-500 text-white text-[10px] font-bold flex items-center justify-center shadow-lg">3</span>
-              </button>
             </div>
 
             {/* User Profile Dropdown */}
@@ -413,7 +403,7 @@ export default function SidebarLayout() {
           <div className="px-4 sm:px-6 lg:px-8 py-6">
             <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
               <div className="flex items-center gap-2">
-                <img src="/logo.png" alt="AI Library" className="h-6 w-auto" />
+                <img src="/logo.png?v=2" alt="AI Library" className="h-6 w-auto" />
               </div>
               <div className="flex items-center gap-5 text-[12px] text-text-tertiary">
                 <Link to="/" className="hover:text-accent transition-colors">{t('nav.home')}</Link>

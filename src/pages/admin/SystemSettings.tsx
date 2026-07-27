@@ -14,7 +14,6 @@ const PAGE_IMAGES: ImageConfig[] = [
   { key: 'login_page_image', label: '普通用户登录页', description: '普通用户登录页右侧背景图' },
   { key: 'register_page_image', label: '注册用户登录页', description: '注册用户登录页右侧背景图' },
   { key: 'admin_login_page_image', label: '管理员登录页', description: '管理员登录页右侧背景图' },
-  { key: 'splash_page_image', label: '启动页', description: '启动页右侧背景图' },
 ];
 
 export default function SystemSettings() {

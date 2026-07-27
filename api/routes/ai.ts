@@ -4,7 +4,8 @@ import { queryAll, queryOne, run, safeJsonParse } from '../db/database.js';
 import { verifyToken } from '../middleware/auth.js';
 import { checkAndUnlockAchievements } from '../services/achievementChecker.js';
 import { runBookAgent } from '../services/bookAgent.js';
-import { awardAiInteraction, awardBookCompletionWithQuiz } from '../services/pointsService.js';
+import { aiLangCode, aiLangInstruction, AI_LANG_NAMES } from '../services/aiLang.js';
+import { awardAiInteraction, awardQuizScore } from '../services/pointsService.js';
 
 const router = Router();
 
@@ -137,7 +138,7 @@ function formatBooksForPrompt(books: any[]): string {
 router.post('/chat', verifyToken, async (req: Request, res: Response): Promise<void> => {
   try {
     const userId = req.user!.userId;
-    const { message, bookId, page, pageText } = req.body;
+    const { message, bookId, page, pageText, language } = req.body;
 
     if (!message) {
       res.status(400).json({ success: false, error: 'Message is required' });
@@ -156,8 +157,8 @@ router.post('/chat', verifyToken, async (req: Request, res: Response): Promise<v
     } else {
       // Homepage / no book context: use LangChain ReAct agent for smart book discovery
       try {
-        const agentResult = await runBookAgent(message);
-        awardAiInteraction(userId);
+        const agentResult = await runBookAgent(message, language);
+        awardAiInteraction(userId, (message as string).length);
         res.json({
           success: true,
           data: {
@@ -195,7 +196,7 @@ router.post('/chat', verifyToken, async (req: Request, res: Response): Promise<v
       contextInfo += `\n\n当前页面的文本内容：\n${pageText}`;
     }
 
-    const systemPrompt = bookId ? SYSTEM_PROMPT + contextInfo : HOMEPAGE_PROMPT + contextInfo;
+    const systemPrompt = (bookId ? SYSTEM_PROMPT + contextInfo : HOMEPAGE_PROMPT + contextInfo) + aiLangInstruction(language);
 
     const messages = [
       { role: 'system', content: systemPrompt },
@@ -230,7 +231,7 @@ router.post('/chat', verifyToken, async (req: Request, res: Response): Promise<v
       }));
     }
 
-    awardAiInteraction(userId);
+    awardAiInteraction(userId, (message as string).length);
 
     res.json({
       success: true,
@@ -244,7 +245,7 @@ router.post('/chat', verifyToken, async (req: Request, res: Response): Promise<v
 
 router.post('/explain', verifyToken, async (req: Request, res: Response): Promise<void> => {
   try {
-    const { text, bookId, page } = req.body;
+    const { text, bookId, page, language } = req.body;
 
     if (!text) {
       res.status(400).json({ success: false, error: 'Text to explain is required' });
@@ -261,7 +262,7 @@ router.post('/explain', verifyToken, async (req: Request, res: Response): Promis
     }
 
     const messages = [
-      { role: 'system', content: SYSTEM_PROMPT + bookContext },
+      { role: 'system', content: SYSTEM_PROMPT + bookContext + aiLangInstruction(language) },
       { role: 'user', content: `请详细解释以下文本的含义，从字面意思、深层含义、写作手法、与全文联系等角度分析：\n\n"${text}"` },
     ];
 
@@ -284,7 +285,7 @@ router.post('/explain', verifyToken, async (req: Request, res: Response): Promis
 
 router.post('/define', verifyToken, async (req: Request, res: Response): Promise<void> => {
   try {
-    const { word, bookId } = req.body;
+    const { word, bookId, language } = req.body;
 
     if (!word) {
       res.status(400).json({ error: 'Word is required' });
@@ -300,7 +301,7 @@ router.post('/define', verifyToken, async (req: Request, res: Response): Promise
     }
 
     const messages = [
-      { role: 'system', content: SYSTEM_PROMPT + bookContext },
+      { role: 'system', content: SYSTEM_PROMPT + bookContext + aiLangInstruction(language) },
       { role: 'user', content: `请定义以下词语/术语，提供音标（英文词）或拼音（中文词）、词性、所有释义（含例句）、同义词和反义词。请用JSON格式返回：\n\n"${word}"\n\n返回格式示例：\n{"word":"...","phonetic":"...","pinyin":"...","partOfSpeech":"...","definitions":[{"meaning":"...","example":"..."}],"synonyms":["..."],"antonyms":["..."]}` },
     ];
 
@@ -326,7 +327,7 @@ router.post('/define', verifyToken, async (req: Request, res: Response): Promise
 
 router.post('/translate', verifyToken, async (req: Request, res: Response): Promise<void> => {
   try {
-    const { text, bookId, page } = req.body;
+    const { text, bookId, page, language } = req.body;
 
     if (!text) {
       res.status(400).json({ success: false, error: 'Text is required' });
@@ -341,12 +342,15 @@ router.post('/translate', verifyToken, async (req: Request, res: Response): Prom
       }
     }
 
-    const isEnglish = /^[a-zA-Z]/.test(text.trim());
-    const targetLang = isEnglish ? '中文' : '英文';
+    // Translate into the user's UI language; if the text is already in that
+    // language, fall back to English (or 中文 when the UI is English).
+    const uiLang = aiLangCode(language);
+    const targetLang = AI_LANG_NAMES[uiLang];
+    const fallbackLang = uiLang === 'en' ? '中文' : 'English';
 
     const messages = [
       { role: 'system', content: SYSTEM_PROMPT + bookContext },
-      { role: 'user', content: `请将以下文本翻译成${targetLang}，要求翻译准确、流畅、自然，保留原文的风格和语气：\n\n"${text}"` },
+      { role: 'user', content: `请将以下文本翻译成${targetLang}。如果文本本身已经是${targetLang}，则翻译成${fallbackLang}。要求翻译准确、流畅、自然，保留原文的风格和语气，只输出译文：\n\n"${text}"` },
     ];
 
     const translatedText = await callAI(messages, { temperature: 0.3 });
@@ -356,8 +360,8 @@ router.post('/translate', verifyToken, async (req: Request, res: Response): Prom
       data: {
         originalText: text,
         translatedText,
-        from: isEnglish ? 'en' : 'zh',
-        to: isEnglish ? 'zh' : 'en',
+        from: 'auto',
+        to: uiLang,
       },
     });
   } catch (error) {
@@ -476,7 +480,7 @@ router.post('/quiz/submit', verifyToken, async (req: Request, res: Response): Pr
     ).length;
     const score = totalQuestions > 0 ? Math.round((correctCount / totalQuestions) * 100) : 0;
 
-    // Points: +15 for completing book + answering quiz
+    // Points: per-question scoring
     let pointsEarned = 0;
 
     const resultId = uuidv4();
@@ -486,8 +490,7 @@ router.post('/quiz/submit', verifyToken, async (req: Request, res: Response): Pr
       [resultId, userId, bookId, score, totalQuestions, correctCount, timeSpent || 0, JSON.stringify(answers)]
     );
 
-    const awardedCompletion = await awardBookCompletionWithQuiz(userId, bookId);
-    if (awardedCompletion) pointsEarned = 15;
+    pointsEarned = await awardQuizScore(userId, correctCount, totalQuestions, bookId);
     // Check achievements
     checkAndUnlockAchievements(userId).then(r => {
       if (r.unlocked.length > 0) console.log(`User ${userId} unlocked: ${r.unlocked.join(', ')}`);

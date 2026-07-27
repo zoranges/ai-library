@@ -1,4 +1,5 @@
 import { useEffect, useState, useMemo } from 'react';
+import { Link } from 'react-router-dom';
 import { BookOpen } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { readingApi } from '@/utils/api';
@@ -85,9 +86,10 @@ export default function ReadingHistory() {
       ) : (
         <div className="space-y-2">
           {history.map((item) => (
-            <div
+            <Link
               key={item.id}
-              className="flex items-center gap-3.5 bg-surface rounded-lg border border-border p-3.5 hover:shadow-1 transition-shadow duration-micro ease-out-quart"
+              to={`/read/${item.bookId}`}
+              className="flex items-center gap-3.5 bg-surface rounded-lg border border-border p-3.5 hover:shadow-1 hover:border-accent/40 transition-all duration-micro ease-out-quart"
             >
               <div className="w-10 h-14 rounded-md bg-accent/10 flex items-center justify-center shrink-0 overflow-hidden">
                 {item.coverUrl ? (
@@ -104,7 +106,7 @@ export default function ReadingHistory() {
                   {item.author && <span className="text-[11px] text-text-tertiary truncate">{item.author}</span>}
                 </div>
               </div>
-            </div>
+            </Link>
           ))}
         </div>
       )}

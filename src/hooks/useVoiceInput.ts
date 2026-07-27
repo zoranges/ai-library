@@ -1,4 +1,5 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
+import i18n from '@/i18n';
 
 export type VoiceStatus = 'idle' | 'recording' | 'processing';
 
@@ -120,6 +121,7 @@ export function useVoiceInput(options: UseVoiceInputOptions = {}): UseVoiceInput
           formData.append('audio', blob, 'recording.webm');
           // stt_only: true → just transcript; false → transcript + agent reply
           formData.append('stt_only', String(optsRef.current.sttOnly ?? true));
+          formData.append('language', i18n.language || 'zh');
 
           const res = await fetch('/api/voice', {
             method: 'POST',

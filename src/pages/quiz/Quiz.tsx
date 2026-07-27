@@ -102,7 +102,7 @@ export default function Quiz() {
           <ChevronLeft className="w-4 h-4" strokeWidth={1.5} />
           {t('common.back')}
         </button>
-        <div className="bg-surface rounded-xl border border-border p-10 text-center animate-scale-in">
+        <div className="bg-surface rounded-xl border border-border p-6 sm:p-10 text-center animate-scale-in">
           <div className="inline-flex items-center justify-center w-12 h-12 bg-success-subtle rounded-lg mb-5">
             <CheckCheck className="w-6 h-6 text-success" strokeWidth={1.5} />
           </div>
@@ -133,7 +133,7 @@ export default function Quiz() {
     const earned = result.correctAnswers;
     return (
       <div className="max-w-xl mx-auto px-4 sm:px-6 lg:px-8 space-y-5">
-        <div className="bg-surface rounded-xl border border-border p-10 text-center animate-scale-in">
+        <div className="bg-surface rounded-xl border border-border p-6 sm:p-10 text-center animate-scale-in">
           <div className="inline-flex items-center justify-center w-14 h-14 bg-warning-subtle rounded-xl mb-5">
             <Trophy className="w-7 h-7 text-warning" strokeWidth={1.5} />
           </div>

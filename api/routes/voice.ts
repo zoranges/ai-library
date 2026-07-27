@@ -53,7 +53,7 @@ router.post('/voice', verifyToken, upload.single('audio'), async (req: Request, 
 
     // Full pipeline: transcribe → agent → reply + books（对标 wuye voice router）
     try {
-      const agentResult = await runBookAgent(transcript);
+      const agentResult = await runBookAgent(transcript, req.body.language);
       res.json({
         success: true,
         data: {

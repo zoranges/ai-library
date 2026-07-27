@@ -496,7 +496,7 @@ export default function Reader() {
         </div>
         {aiOpen && (
           <div
-            className="fixed right-0 top-12 bottom-0 w-[380px] border-l animate-fade-in flex flex-col shadow-2xl"
+            className="fixed right-0 top-12 bottom-0 w-full max-w-[380px] border-l animate-fade-in flex flex-col shadow-2xl"
             style={{ background: isDark ? '#1e1e36' : '#fafafe', borderColor: headerBorder }}
           >
             <AIAssistant bookId={id || ''} currentPage={currentPage} pageText={pageText} />
@@ -603,7 +603,7 @@ export default function Reader() {
         {/* Outline / Bookmarks sidebar */}
         {showOutline && (
           <div
-            className="w-64 shrink-0 border-r overflow-y-auto animate-fade-in select-none backdrop-blur-sm"
+            className="w-full sm:w-64 shrink-0 border-r overflow-y-auto animate-fade-in select-none backdrop-blur-sm"
             style={{ background: isDark ? 'rgba(26,26,46,0.7)' : 'rgba(255,255,255,0.7)', borderColor: headerBorder }}
           >
             <div className="flex items-center gap-1 p-2 border-b" style={{ borderColor: headerBorder }}>
@@ -778,7 +778,7 @@ export default function Reader() {
         {/* AI Sidebar */}
         {aiOpen && (
           <div
-            className="w-[380px] border-l shrink-0 animate-fade-in flex flex-col shadow-2xl"
+            className="w-full sm:w-[380px] border-l shrink-0 animate-fade-in flex flex-col shadow-2xl"
             style={{
               background: isDark ? '#1e1e36' : '#fafafe',
               borderColor: headerBorder,
@@ -797,7 +797,7 @@ export default function Reader() {
           onClick={(e) => e.stopPropagation()}
         >
           <div
-            className="flex items-center gap-1 px-2 py-1.5 rounded-2xl shadow-2xl backdrop-blur-xl"
+            className="flex flex-wrap items-center justify-center gap-1 px-2 py-1.5 rounded-2xl shadow-2xl backdrop-blur-xl"
             style={{
               background: isDark ? 'rgba(42,42,72,0.95)' : 'rgba(255,255,255,0.95)',
               border: isDark ? '1px solid rgba(255,255,255,0.12)' : '1px solid rgba(0,0,0,0.06)',

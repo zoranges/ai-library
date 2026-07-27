@@ -107,7 +107,7 @@ export default function BookDetail() {
 
       <div className="flex flex-col lg:flex-row gap-8 animate-fade-in">
         <div className="shrink-0">
-          <div className="w-52 h-72 rounded-xl overflow-hidden shadow-1 relative">
+          <div className="w-36 sm:w-52 h-56 sm:h-72 rounded-xl overflow-hidden shadow-1 relative">
             <BookCover book={book} className="w-full h-full" iconClassName="w-8 h-8 text-text-tertiary/40" />
             <div className="absolute inset-0 bg-gradient-to-b from-white/10 to-transparent pointer-events-none" />
           </div>

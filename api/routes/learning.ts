@@ -174,7 +174,7 @@ router.post('/highlights', verifyToken, async (req: Request, res: Response): Pro
     );
 
     const highlight = await queryOne('SELECT * FROM highlights WHERE id = ?', [id]);
-    awardHighlightOrNote(userId);
+    awardHighlightOrNote(userId, (text as string).length);
     res.status(201).json({ success: true, data: highlight });
   } catch (error) {
     res.status(500).json({ success: false, error: 'Failed to create highlight' });
@@ -294,7 +294,7 @@ router.post('/notes', verifyToken, async (req: Request, res: Response): Promise<
     );
 
     const note = await queryOne('SELECT * FROM notes WHERE id = ?', [id]);
-    awardHighlightOrNote(userId);
+    awardHighlightOrNote(userId, (content as string).length);
     res.status(201).json({ success: true, data: note });
   } catch (error) {
     res.status(500).json({ success: false, error: 'Failed to create note' });

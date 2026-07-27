@@ -47,11 +47,8 @@ export default function FrontendLayout() {
       <header className="sticky top-0 z-50 h-14 bg-surface border-b border-border shadow-1">
         <div className="max-w-7xl mx-auto h-full flex items-center gap-4 px-4 sm:px-6">
           {/* Logo */}
-          <Link to="/" className="flex items-center gap-2 shrink-0">
-            <div className="h-8 w-8 bg-accent rounded-lg flex items-center justify-center">
-              <BookOpen className="h-4 w-4 text-white" strokeWidth={2} />
-            </div>
-            <span className="text-base font-bold text-text-primary hidden sm:block">AI Library</span>
+          <Link to="/" className="flex items-center shrink-0">
+            <img src="/logo.png?v=2" alt="AI Library" className="h-10 w-auto" />
           </Link>
 
           {/* Desktop nav links */}

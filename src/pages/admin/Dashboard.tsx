@@ -202,7 +202,7 @@ export default function Dashboard() {
       </div>
 
       {/* Row 2: KPI Metrics with trend comparison */}
-      <div className="grid grid-cols-2 lg:grid-cols-6 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
         {kpiItems.map((item) => {
           const Icon = item.icon;
           const rawValue = data?.[item.key] ?? 0;

@@ -7,6 +7,7 @@ dotenv.config({ path: path.join(__dirname, '..', '.env') });
 
 import app from './app.js';
 import { initDatabase } from './db/database.js';
+import { startScoreResetScheduler } from './services/scoreResetService.js';
 
 const PORT = process.env.PORT || 3001;
 
@@ -14,6 +15,8 @@ async function startServer() {
   try {
     await initDatabase();
     console.log('Database initialized successfully');
+
+    startScoreResetScheduler();
 
     const server = app.listen(PORT, () => {
       console.log(`Server ready on port ${PORT}`);

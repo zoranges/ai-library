@@ -38,6 +38,9 @@ export default function SchoolManagement() {
   const [wlUploading, setWlUploading] = useState(false);
   const [wlResult, setWlResult] = useState<{ total: number; inserted: number; skipped: number } | null>(null);
   const [wlError, setWlError] = useState('');
+  const [welcomeImage, setWelcomeImage] = useState('');
+  const [welcomeImageUploading, setWelcomeImageUploading] = useState(false);
+  const [welcomeImageSaved, setWelcomeImageSaved] = useState(false);
 
   const allStates = getAllStates();
 
@@ -125,6 +128,8 @@ export default function SchoolManagement() {
     setWlFile(null);
     setWlResult(null);
     setWlError('');
+    setWelcomeImage('');
+    setWelcomeImageSaved(false);
     setForm({ name: '', country: 'Malaysia', state: '', district: '', address: '', contactPhone: '', contactEmail: '' });
     setModalOpen(true);
   }
@@ -140,13 +145,15 @@ export default function SchoolManagement() {
       contactPhone: school.contactPhone || '',
       contactEmail: school.contactEmail || '',
     });
+    setWelcomeImage(school.welcomeImage || '');
+    setWelcomeImageSaved(false);
     setModalOpen(true);
   }
 
   async function handleSave() {
     if (!form.name.trim() || !form.state) return;
     if (editId) {
-      await adminApi.updateSchool(editId, form).catch(() => {});
+      await adminApi.updateSchool(editId, { ...form, welcomeImage }).catch(() => {});
       setModalOpen(false);
     } else {
       const res: any = await adminApi.createSchool(form).catch(() => {});
@@ -200,6 +207,22 @@ export default function SchoolManagement() {
     setWlFile(null);
     setWlResult(null);
     setWlError('');
+    setWelcomeImage('');
+    setWelcomeImageSaved(false);
+  }
+
+  async function handleWelcomeImageUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setWelcomeImageUploading(true);
+    try {
+      const result = await adminApi.uploadFile(file);
+      setWelcomeImage(result.url);
+      setWelcomeImageSaved(true);
+      setTimeout(() => setWelcomeImageSaved(false), 2000);
+    } catch {} finally {
+      setWelcomeImageUploading(false);
+    }
   }
 
   return (
@@ -343,6 +366,45 @@ export default function SchoolManagement() {
               <Input label={t('admin.contactPhone')} value={form.contactPhone} onChange={(e) => setForm({ ...form, contactPhone: e.target.value })} />
               <Input label={t('admin.adminEmail')} type="email" value={form.contactEmail} onChange={(e) => setForm({ ...form, contactEmail: e.target.value })} placeholder="admin@school.edu.my" />
             </div>
+
+            {editId && (
+              <div className="pt-3 border-t border-border">
+                <p className="text-[13px] font-medium text-text-primary mb-2">{t('admin.welcomeImage', 'Welcome Card Image')}</p>
+                <div className="flex items-center gap-3">
+                  <div className="h-20 w-36 rounded-lg bg-surface-raised border border-border overflow-hidden shrink-0">
+                    {welcomeImage ? (
+                      <img src={welcomeImage} alt="" className="h-full w-full object-cover" />
+                    ) : (
+                      <div className="h-full w-full flex items-center justify-center text-text-tertiary">
+                        <Upload className="h-5 w-5" strokeWidth={1.5} />
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[11px] text-text-tertiary mb-2 truncate">
+                      {welcomeImage || 'No custom image set'}
+                    </p>
+                    <label className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-surface border border-border cursor-pointer hover:border-accent/40 hover:bg-accent/[0.02] transition-colors text-[12px] text-text-secondary">
+                      {welcomeImageUploading ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" strokeWidth={1.5} />
+                      ) : welcomeImageSaved ? (
+                        <Check className="h-3.5 w-3.5 text-success" strokeWidth={1.5} />
+                      ) : (
+                        <Upload className="h-3.5 w-3.5" strokeWidth={1.5} />
+                      )}
+                      {welcomeImageUploading ? 'Uploading...' : welcomeImageSaved ? 'Saved' : 'Replace image'}
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={handleWelcomeImageUpload}
+                        disabled={welcomeImageUploading}
+                      />
+                    </label>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         )}
       </Modal>

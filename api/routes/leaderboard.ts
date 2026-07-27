@@ -7,8 +7,8 @@ const router = Router();
 
 router.get('/my-school', verifyToken, async (req: Request, res: Response): Promise<void> => {
   try {
-    const school = await queryOne<{ id: string; name: string; state: string; district: string; country: string }>(
-      `SELECT s.id, s.name, s.state, s.district, s.country
+    const school = await queryOne<{ id: string; name: string; state: string; district: string; country: string; welcomeImage: string | null }>(
+      `SELECT s.id, s.name, s.state, s.district, s.country, s.welcomeImage
        FROM schools s JOIN users u ON u.schoolId = s.id
        WHERE u.id = ?`,
       [req.user!.userId]
@@ -116,7 +116,7 @@ router.get('/', verifyToken, async (req: Request, res: Response): Promise<void> 
     const readingTimeSubquery = `SELECT userId, COALESCE(SUM(duration), 0) as totalMinutes FROM reading_sessions WHERE 1=1${sessionsDateFilterClause} GROUP BY userId`;
 
     // Main leaderboard query with school district/state/country joined in
-    let sql = `SELECT u.id as userId, u.username, u.schoolId, u.points, u.level, u.avatar,
+    let sql = `SELECT u.id as userId, u.username, u.schoolId, u.points, u.totalPoints, u.monthlyPoints, u.yearlyPoints, u.level, u.avatar,
                       s.name as schoolName, s.district, s.state, s.country,
                       COALESCE(cb.count, 0) as completedBooks,
                       COALESCE(qc.count, 0) as quizCount,
@@ -219,6 +219,9 @@ router.get('/', verifyToken, async (req: Request, res: Response): Promise<void> 
           }
         : null,
       points: entry.points || 0,
+      totalPoints: entry.totalPoints || 0,
+      monthlyPoints: entry.monthlyPoints || 0,
+      yearlyPoints: entry.yearlyPoints || 0,
       booksRead: entry.completedBooks || 0,
       quizzesCompleted: entry.quizCount || 0,
       readingTime: entry.totalReadingMinutes || 0,

@@ -7,6 +7,9 @@ export interface User {
   grade?: string;
   role: 'student' | 'teacher' | 'admin' | 'super_admin';
   points: number;
+  totalPoints?: number;
+  monthlyPoints?: number;
+  yearlyPoints?: number;
   level: number;
   preferredLanguage?: string;
   phone?: string;
@@ -27,6 +30,7 @@ export interface School {
   country?: string;
   contactPhone?: string;
   contactEmail?: string;
+  welcomeImage?: string;
   studentCount: number;
   bookCount: number;
   isActive: boolean;
@@ -162,6 +166,7 @@ export interface Achievement {
   condition: string;
   points: number;
   rarity: 'common' | 'rare' | 'epic' | 'legendary';
+  periodType?: 'permanent' | 'monthly' | 'yearly';
 }
 
 export interface UserAchievement {
@@ -216,14 +221,20 @@ export interface Admin {
 export interface LeaderboardEntry {
   rank: number;
   userId: string;
+  username?: string;
   user?: User;
   schoolId: string;
   school?: School;
   points: number;
+  totalPoints?: number;
+  monthlyPoints?: number;
+  yearlyPoints?: number;
   booksRead: number;
   quizzesCompleted: number;
+  readingTime?: number;
   streak: number;
   level: number;
+  avatar?: string;
 }
 
 export interface ReadingStats {
@@ -236,6 +247,9 @@ export interface ReadingStats {
   longestStreak: number;
   quizAverage: number;
   points: number;
+  totalPoints?: number;
+  monthlyPoints?: number;
+  yearlyPoints?: number;
   level: number;
   weeklyMinutes: number[];
   monthlyBooks: number[];

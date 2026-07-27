@@ -98,6 +98,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     // Call backend to deactivate sessions (fire-and-forget)
     authApi.logout().catch(() => {});
     storeToken(null);
+    sessionStorage.removeItem('welcome_card_shown');
     set({ user: null, token: null, isAuthenticated: false, error: null });
   },
 

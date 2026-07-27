@@ -36,6 +36,9 @@ class FFmpegConverter implements AudioConverter {
         {
           timeout: 30000,
           maxBuffer: 50 * 1024 * 1024,
+          // execFile defaults to encoding 'utf8', which puts stdout in string
+          // mode and mangles binary audio into U+FFFD. 'buffer' keeps raw bytes.
+          encoding: 'buffer',
         },
       );
 
@@ -43,8 +46,6 @@ class FFmpegConverter implements AudioConverter {
         reject(new Error('Failed to start ffmpeg'));
         return;
       }
-
-      ffmpeg.stdout.setEncoding(null);
 
       const chunks: Buffer[] = [];
       let stderr = '';

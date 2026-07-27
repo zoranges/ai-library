@@ -179,7 +179,7 @@ export default function Register() {
 
   return (
     <div className="min-h-screen flex">
-      <div className="w-2/5 flex flex-col items-center justify-center px-6 py-8 sm:px-12">
+      <div className="w-full lg:w-2/5 flex flex-col items-center justify-center px-6 py-8 sm:px-12">
         <div className="w-full max-w-[440px]">
           <div className="mb-8 animate-fade-in">
             <div className="flex items-center gap-2.5 mb-5">
@@ -188,7 +188,7 @@ export default function Register() {
               </div>
               <span className="text-lg font-black text-text-primary font-heading tracking-tight">AI Library</span>
             </div>
-            <h1 className="text-[38px] font-black text-text-primary font-heading leading-[1.1] tracking-tight">
+            <h1 className="text-3xl sm:text-[38px] font-black text-text-primary font-heading leading-[1.1] tracking-tight">
               {t('auth.joinReadingCommunity')}
             </h1>
             <p className="mt-4 text-[15px] text-text-tertiary leading-relaxed max-w-[380px]">

@@ -39,6 +39,7 @@ export async function initDatabase(): Promise<void> {
         studentCount INT DEFAULT 0,
         bookCount INT DEFAULT 0,
         isActive TINYINT(1) DEFAULT 1,
+        welcomeImage TEXT NULL,
         createdAt DATETIME DEFAULT CURRENT_TIMESTAMP
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
     `);
@@ -420,6 +421,55 @@ async function migrateExistingTables(conn: PoolConnection) {
   try {
     await conn.execute("ALTER TABLE users ADD COLUMN status VARCHAR(20) NOT NULL DEFAULT 'active'");
   } catch { /* column already exists */ }
+
+  // Three-column point tracking
+  try {
+    await conn.execute('ALTER TABLE users ADD COLUMN totalPoints INT DEFAULT 0');
+  } catch { /* column already exists */ }
+  try {
+    await conn.execute('ALTER TABLE users ADD COLUMN monthlyPoints INT DEFAULT 0');
+  } catch { /* column already exists */ }
+  try {
+    await conn.execute('ALTER TABLE users ADD COLUMN yearlyPoints INT DEFAULT 0');
+  } catch { /* column already exists */ }
+  try {
+    await conn.execute("ALTER TABLE users ADD COLUMN lastMonthlyReset VARCHAR(7) DEFAULT ''");
+  } catch { /* column already exists */ }
+  try {
+    await conn.execute("ALTER TABLE users ADD COLUMN lastYearlyReset VARCHAR(4) DEFAULT ''");
+  } catch { /* column already exists */ }
+
+  // Migrate existing points to new columns (one-time)
+  try {
+    await conn.execute('UPDATE users SET totalPoints = points, monthlyPoints = points, yearlyPoints = points WHERE totalPoints = 0');
+  } catch { /* migration already done */ }
+
+  // Welcome image per school
+  try {
+    await conn.execute('ALTER TABLE schools ADD COLUMN welcomeImage TEXT NULL');
+  } catch { /* column already exists */ }
+
+  // Achievement period type
+  try {
+    await conn.execute("ALTER TABLE achievements ADD COLUMN periodType VARCHAR(20) DEFAULT 'permanent'");
+  } catch { /* column already exists */ }
+
+  // Update achievement point values to new spec
+  await conn.execute(`INSERT INTO achievements (id, name, description, icon, category, \`condition\`, points, rarity, periodType) VALUES
+    ('ach-001', 'First Book', 'Complete reading your first book', '📖', 'reading', 'complete-1-book', 10, 'common', 'permanent'),
+    ('ach-002', 'Bookworm', 'Complete reading 5 books', '📚', 'reading', 'complete-5-books', 20, 'common', 'permanent'),
+    ('ach-003', 'Super Bookworm', 'Complete reading 10 books', '📚', 'reading', 'complete-10-books', 35, 'rare', 'permanent'),
+    ('ach-004', 'Library Master', 'Complete reading 25 books', '🏛️', 'reading', 'complete-25-books', 50, 'epic', 'permanent'),
+    ('ach-005', 'Grand Scholar', 'Complete reading 50 books', '🎓', 'reading', 'complete-50-books', 100, 'legendary', 'permanent'),
+    ('ach-006', 'Getting Started', 'Read for 100 minutes total', '⏱️', 'reading', 'read-100-minutes', 10, 'common', 'permanent'),
+    ('ach-007', 'Marathon Reader', 'Read for 600 minutes total', '🏃', 'reading', 'read-600-minutes', 20, 'rare', 'permanent'),
+    ('ach-008', 'Dedicated Reader', 'Read for 3000 minutes total', '💪', 'reading', 'read-3000-minutes', 50, 'epic', 'permanent'),
+    ('ach-009', 'Quiz Master', 'Score 100% on a quiz (5/5 correct)', '🏆', 'quiz', 'quiz-perfect-score', 12, 'epic', 'permanent'),
+    ('ach-010', 'Warming Up', 'Read for 3 consecutive days', '🔥', 'streak', 'streak-3-days', 10, 'common', 'permanent'),
+    ('ach-011', 'On Fire', 'Read for 7 consecutive days', '🔥', 'streak', 'streak-7-days', 20, 'rare', 'permanent'),
+    ('ach-012', 'Unstoppable', 'Read for 30 consecutive days', '⚡', 'streak', 'streak-30-days', 50, 'epic', 'permanent')
+  ON DUPLICATE KEY UPDATE
+    name = VALUES(name), description = VALUES(description), points = VALUES(points), periodType = VALUES(periodType)`);
 }
 
 async function seedData(conn: PoolConnection) {
@@ -475,7 +525,7 @@ async function seedData(conn: PoolConnection) {
      ('sys-config-001', 'login_page_image', '/普通用户登录.jpg', '普通用户登录页背景图'),
      ('sys-config-002', 'register_page_image', '/首页拿督新.png', '注册用户登录页背景图'),
      ('sys-config-003', 'admin_login_page_image', '/首页拿督新.png', '管理员登录页背景图'),
-     ('sys-config-004', 'splash_page_image', '/启动页的拿督.png', '启动页背景图')`
+     ('sys-config-004', 'splash_page_image', '/启动页的拿督.png', '启动页背景图（已废弃）')`
   );
 
   // Seed default achievements

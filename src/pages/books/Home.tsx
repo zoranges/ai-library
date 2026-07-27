@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import BookCover from '@/components/BookCover';
 import FloatingAiAssistant3D from '@/components/FloatingAiAssistant3D';
+import WelcomeCard from '@/components/WelcomeCard';
 import { useBookStore } from '@/stores/bookStore';
 import { bookApi } from '@/utils/api';
 import type { Book } from '@/types';
@@ -48,6 +49,7 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-bg">
+      <WelcomeCard />
       {/* ===== HERO BANNER + POPULAR PANEL ===== */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 p-6 lg:p-8 max-w-[1600px] mx-auto">
         {/* Hero Banner */}

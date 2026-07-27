@@ -1,6 +1,7 @@
 import { ChatOpenAI } from '@langchain/openai';
 import { tool } from '@langchain/core/tools';
 import { queryAll, queryOne, safeJsonParse } from '../db/database.js';
+import { aiLangInstruction } from './aiLang.js';
 
 const AI_API_KEY = process.env.DEEPSEEK_API_KEY || '';
 const AI_BASE_URL = 'https://api.deepseek.com/v1';
@@ -178,7 +179,7 @@ interface AgentResult {
   }>;
 }
 
-export async function runBookAgent(userMessage: string): Promise<AgentResult> {
+export async function runBookAgent(userMessage: string, language?: string): Promise<AgentResult> {
   const model = new ChatOpenAI({
     modelName: 'deepseek-chat',
     temperature: 0.7,
@@ -192,7 +193,7 @@ export async function runBookAgent(userMessage: string): Promise<AgentResult> {
   const modelWithTools = model.bindTools(ALL_TOOLS);
 
   const messages: Array<{ role: string; content: string; tool_calls?: any; tool_call_id?: string }> = [
-    { role: 'system', content: AGENT_SYSTEM_PROMPT },
+    { role: 'system', content: AGENT_SYSTEM_PROMPT + aiLangInstruction(language) },
     { role: 'user', content: userMessage },
   ];
 

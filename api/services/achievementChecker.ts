@@ -134,6 +134,7 @@ interface AchievementRow {
   condition: string;
   points: number;
   rarity: string;
+  periodType?: string;
 }
 
 export async function checkAndUnlockAchievements(
@@ -142,13 +143,23 @@ export async function checkAndUnlockAchievements(
 ): Promise<{ unlocked: string[] }> {
   const unlocked: string[] = [];
 
+  const now = new Date();
+  const monthStart = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
+  const yearStart = `${now.getFullYear()}-01-01`;
+
   let sql = `
     SELECT a.* FROM achievements a
     WHERE a.id NOT IN (
-      SELECT ua.achievementId FROM user_achievements ua WHERE ua.userId = ?
+      SELECT ua.achievementId FROM user_achievements ua
+      WHERE ua.userId = ?
+      AND (
+        a.periodType = 'permanent'
+        OR (a.periodType = 'monthly' AND ua.unlockedAt >= ?)
+        OR (a.periodType = 'yearly' AND ua.unlockedAt >= ?)
+      )
     )
   `;
-  const params: unknown[] = [userId];
+  const params: unknown[] = [userId, monthStart, yearStart];
 
   if (category) {
     sql += ' AND a.category = ?';
@@ -167,7 +178,10 @@ export async function checkAndUnlockAchievements(
           'INSERT INTO user_achievements (id, userId, achievementId) VALUES (?, ?, ?)',
           [id, userId, ach.id]
         );
-        await run('UPDATE users SET points = points + ? WHERE id = ?', [ach.points, userId]);
+        await run(
+          'UPDATE users SET points = points + ?, totalPoints = totalPoints + ?, monthlyPoints = monthlyPoints + ?, yearlyPoints = yearlyPoints + ? WHERE id = ?',
+          [ach.points, ach.points, ach.points, ach.points, userId]
+        );
         await run(
           'INSERT INTO points (id, userId, points, type, description, referenceId) VALUES (?, ?, ?, ?, ?, ?)',
           [uuidv4(), userId, ach.points, 'achievement', `Achievement unlocked: ${ach.name}`, ach.id]

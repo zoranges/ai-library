@@ -40,7 +40,9 @@ export default function LeaderboardManagement() {
   const [loading, setLoading] = useState(true);
 
   const metricOptions = [
-    { value: 'points', label: t('leaderboard.points') },
+    { value: 'points', label: t('leaderboard.totalPoints') },
+    { value: 'monthlyPoints', label: t('leaderboard.monthlyPoints') },
+    { value: 'yearlyPoints', label: t('leaderboard.yearlyPoints') },
     { value: 'books', label: t('leaderboard.booksRead') },
     { value: 'quizzes', label: t('leaderboard.quizzesCompleted') },
     { value: 'readingTime', label: t('admin.totalReadingTime') },
@@ -90,7 +92,9 @@ export default function LeaderboardManagement() {
                 <th className="text-center px-4 py-2.5 text-[12px] text-text-tertiary font-medium w-16">{t('leaderboard.rank')}</th>
                 <th className="text-left px-4 py-2.5 text-[12px] text-text-tertiary font-medium">{t('admin.name')}</th>
                 <th className="text-left px-4 py-2.5 text-[12px] text-text-tertiary font-medium">{t('leaderboard.school')}</th>
-                <th className="text-right px-4 py-2.5 text-[12px] text-text-tertiary font-medium">{t('leaderboard.points')}</th>
+                <th className="text-right px-4 py-2.5 text-[12px] text-text-tertiary font-medium">{t('leaderboard.totalPoints')}</th>
+                <th className="text-right px-4 py-2.5 text-[12px] text-text-tertiary font-medium">{t('leaderboard.monthlyPoints')}</th>
+                <th className="text-right px-4 py-2.5 text-[12px] text-text-tertiary font-medium">{t('leaderboard.yearlyPoints')}</th>
                 <th className="text-right px-4 py-2.5 text-[12px] text-text-tertiary font-medium">{t('leaderboard.booksRead')}</th>
                 <th className="text-right px-4 py-2.5 text-[12px] text-text-tertiary font-medium">{t('admin.totalReadingTime')}</th>
               </tr>
@@ -110,7 +114,9 @@ export default function LeaderboardManagement() {
                     </div>
                   </td>
                   <td className="px-4 py-3 text-text-secondary">{entry.school?.name || entry.schoolName || '-'}</td>
-                  <td className="px-4 py-3 text-right font-semibold text-text-primary font-mono text-[13px]">{entry.points?.toLocaleString()}</td>
+                  <td className="px-4 py-3 text-right font-semibold text-text-primary font-mono text-[13px]">{(entry.totalPoints ?? entry.points)?.toLocaleString()}</td>
+                  <td className="px-4 py-3 text-right text-text-secondary font-mono text-[13px]">{entry.monthlyPoints?.toLocaleString() ?? '0'}</td>
+                  <td className="px-4 py-3 text-right text-text-secondary font-mono text-[13px]">{entry.yearlyPoints?.toLocaleString() ?? '0'}</td>
                   <td className="px-4 py-3 text-right text-text-secondary font-mono text-[13px]">{entry.booksRead}</td>
                   <td className="px-4 py-3 text-right text-text-secondary font-mono text-[13px]">{formatReadingTime(entry.readingTime)}</td>
                 </tr>

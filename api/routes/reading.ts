@@ -264,7 +264,7 @@ router.get('/stats', verifyToken, async (req: Request, res: Response): Promise<v
       'SELECT COUNT(*) as count FROM reading_progress WHERE userId = ?',
       [userId]
     );
-    const user = await queryOne('SELECT points, level FROM users WHERE id = ?', [userId]);
+    const user = await queryOne('SELECT points, totalPoints, monthlyPoints, yearlyPoints, level FROM users WHERE id = ?', [userId]);
     const quizAvg = await queryOne(
       'SELECT COALESCE(AVG(score), 0) as avg FROM quiz_results WHERE userId = ?',
       [userId]
@@ -328,6 +328,9 @@ router.get('/stats', verifyToken, async (req: Request, res: Response): Promise<v
         longestStreak: 0,
         quizAverage: Math.round((quizAvg?.avg as number) || 0),
         points: user?.points || 0,
+        totalPoints: user?.totalPoints || 0,
+        monthlyPoints: user?.monthlyPoints || 0,
+        yearlyPoints: user?.yearlyPoints || 0,
         level: user?.level || 1,
         weeklyMinutes,
         monthlyBooks,
@@ -344,7 +347,7 @@ router.get('/report', verifyToken, async (req: Request, res: Response): Promise<
   try {
     const userId = req.user!.userId;
 
-    const user = await queryOne('SELECT username, email, points, level FROM users WHERE id = ?', [userId]);
+    const user = await queryOne('SELECT username, email, points, totalPoints, monthlyPoints, yearlyPoints, level FROM users WHERE id = ?', [userId]);
     const completedBooks = await queryOne('SELECT COUNT(*) as count FROM reading_progress WHERE userId = ? AND isCompleted = 1', [userId]);
     const totalBooks = await queryOne('SELECT COUNT(*) as count FROM reading_progress WHERE userId = ?', [userId]);
     const totalMinutes = await queryOne('SELECT COALESCE(SUM(duration), 0) as total FROM reading_sessions WHERE userId = ?', [userId]);
@@ -464,6 +467,9 @@ router.get('/report', verifyToken, async (req: Request, res: Response): Promise<
           username: user?.username,
           email: user?.email,
           points: user?.points,
+          totalPoints: user?.totalPoints,
+          monthlyPoints: user?.monthlyPoints,
+          yearlyPoints: user?.yearlyPoints,
           level: user?.level,
         },
         overview: {

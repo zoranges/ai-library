@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import type { ChatMessage } from '@/types';
 import { aiApi } from '@/utils/api';
+import i18n from '@/i18n';
 
 function genId(): string {
   try {
@@ -45,7 +46,7 @@ export const useAiStore = create<AiState>((set, get) => ({
     };
     set((state) => ({ messages: [...state.messages, userMessage], isLoading: true, error: null }));
     try {
-      const res = await aiApi.chat({ message: content, bookId, page, pageText });
+      const res = await aiApi.chat({ message: content, bookId, page, pageText, language: i18n.language });
       const data = res.data as any;
       const assistantMessage: ChatMessage = {
         id: data.id || genId(),
@@ -64,13 +65,13 @@ export const useAiStore = create<AiState>((set, get) => ({
     const userMessage: ChatMessage = {
       id: genId(),
       role: 'user',
-      content: `请解释：${text}`,
+      content: `${i18n.t('ai.explainPrefix')}${text}`,
       timestamp: new Date().toISOString(),
       metadata: { bookId, page, type: 'explain' },
     };
     set((state) => ({ messages: [...state.messages, userMessage], isLoading: true, error: null }));
     try {
-      const res = await aiApi.explain({ text, bookId, page });
+      const res = await aiApi.explain({ text, bookId, page, language: i18n.language });
       const data = res.data as any;
       const assistantMessage: ChatMessage = {
         id: genId(),
@@ -89,13 +90,13 @@ export const useAiStore = create<AiState>((set, get) => ({
     const userMessage: ChatMessage = {
       id: genId(),
       role: 'user',
-      content: `请定义：${word}`,
+      content: `${i18n.t('ai.definePrefix')}${word}`,
       timestamp: new Date().toISOString(),
       metadata: { bookId, type: 'define' },
     };
     set((state) => ({ messages: [...state.messages, userMessage], isLoading: true, error: null }));
     try {
-      const res = await aiApi.define({ word, bookId });
+      const res = await aiApi.define({ word, bookId, language: i18n.language });
       const data = res.data as any;
       const defContent = data.word
         ? `${data.word} ${data.phonetic || data.pinyin || ''}\n\n${(data.definitions || []).map((d: any) => `${d.meaning}\n例: ${d.example || ''}`).join('\n\n')}${data.synonyms?.length ? `\n\n同义词: ${data.synonyms.join(', ')}` : ''}`
@@ -117,13 +118,13 @@ export const useAiStore = create<AiState>((set, get) => ({
     const userMessage: ChatMessage = {
       id: genId(),
       role: 'user',
-      content: `请翻译：${text}`,
+      content: `${i18n.t('ai.translatePrefix')}${text}`,
       timestamp: new Date().toISOString(),
       metadata: { bookId, page, type: 'translate' },
     };
     set((state) => ({ messages: [...state.messages, userMessage], isLoading: true, error: null }));
     try {
-      const res = await aiApi.translate({ text, bookId, page });
+      const res = await aiApi.translate({ text, bookId, page, language: i18n.language });
       const data = res.data as any;
       const assistantMessage: ChatMessage = {
         id: genId(),

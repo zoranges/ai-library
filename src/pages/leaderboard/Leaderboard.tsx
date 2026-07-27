@@ -15,8 +15,10 @@ function getInitials(name: string) {
 
 function getScoreValue(entry: LeaderboardEntry, metric: string) {
   if (metric === 'books') return entry.booksRead;
-  if (metric === 'readingTime') return `${Math.round((entry as any).totalReadingMinutes || entry.points / 10)}m`;
-  return entry.points;
+  if (metric === 'readingTime') return `${Math.round(entry.readingTime || (entry as any).totalReadingMinutes || 0)}m`;
+  if (metric === 'monthlyPoints') return entry.monthlyPoints ?? 0;
+  if (metric === 'yearlyPoints') return entry.yearlyPoints ?? 0;
+  return entry.totalPoints ?? entry.points;
 }
 
 interface Option {
@@ -107,7 +109,9 @@ export default function Leaderboard() {
   }, [selectedState, selectedDistrict, isAdmin]);
 
   const METRIC_TABS = [
-    { key: 'points', label: t('leaderboard.points'), icon: <Star className="w-3.5 h-3.5" strokeWidth={1.5} /> },
+    { key: 'points', label: t('leaderboard.totalPoints'), icon: <Star className="w-3.5 h-3.5" strokeWidth={1.5} /> },
+    { key: 'monthlyPoints', label: t('leaderboard.monthlyPoints'), icon: <Star className="w-3.5 h-3.5" strokeWidth={1.5} /> },
+    { key: 'yearlyPoints', label: t('leaderboard.yearlyPoints'), icon: <Star className="w-3.5 h-3.5" strokeWidth={1.5} /> },
     { key: 'books', label: t('leaderboard.byBooks'), icon: <BookOpen className="w-3.5 h-3.5" strokeWidth={1.5} /> },
     { key: 'readingTime', label: t('profile.totalMinutes'), icon: <Clock className="w-3.5 h-3.5" strokeWidth={1.5} /> },
   ];
@@ -178,7 +182,7 @@ export default function Leaderboard() {
 
         {isAdmin ? (
           /* Admin: full cascading location filter */
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <div className="w-28">
               <Select options={countryOptions} value={selectedCountry} onChange={() => {}} />
             </div>
@@ -250,7 +254,7 @@ export default function Leaderboard() {
                             : 'w-12 h-12 text-sm bg-gradient-to-br from-brand-400 to-brand-600/80'
                         }`}
                       >
-                        {getInitials(entry.user?.username || 'U')}
+                        {getInitials(entry.username || entry.user?.username || 'U')}
                       </div>
                       <div className={`absolute -bottom-1 -right-1 w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold ${
                         rank === 1 ? 'bg-accent text-white' : 'bg-surface border border-border text-text-tertiary'
@@ -263,7 +267,7 @@ export default function Leaderboard() {
                     </div>
                     <div className={`mt-3 text-center ${isFirst ? 'mt-4' : 'mt-2'}`}>
                       <p className={`font-bold text-text-primary ${isFirst ? 'text-sm' : 'text-xs'}`}>
-                        {entry.user?.username || t('leaderboard.student')}
+                        {entry.username || entry.user?.username || t('leaderboard.student')}
                       </p>
                       <p className="text-[11px] text-text-tertiary mt-0.5">{entry.school?.name || ''}</p>
                       <p className={`font-bold mt-1 text-sm ${rank === 1 ? 'text-accent' : 'text-text-secondary'}`}>
@@ -290,11 +294,11 @@ export default function Leaderboard() {
                     {entry.rank}
                   </span>
                   <div className="w-8 h-8 rounded-full bg-accent/70 flex items-center justify-center text-white text-[10px] font-semibold">
-                    {getInitials(entry.user?.username || 'U')}
+                    {getInitials(entry.username || entry.user?.username || 'U')}
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className={`text-sm font-medium truncate ${isCurrentUser ? 'text-accent' : 'text-text-primary'}`}>
-                      {isCurrentUser ? t('leaderboard.student') : entry.user?.username || t('leaderboard.student')}
+                      {entry.username || entry.user?.username || t('leaderboard.student')}
                     </p>
                     <p className="text-[11px] text-text-tertiary">{entry.school?.name || ''}</p>
                   </div>
@@ -316,7 +320,7 @@ export default function Leaderboard() {
                   {getInitials(user?.username || 'U')}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-accent">{t('leaderboard.student')}</p>
+                  <p className="text-sm font-medium text-accent">{user?.username || t('leaderboard.student')}</p>
                   <p className="text-[11px] text-text-tertiary">{currentUserEntry.school?.name || ''}</p>
                 </div>
                 <span className="text-sm font-mono font-medium text-accent tabular-nums">

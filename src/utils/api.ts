@@ -246,7 +246,7 @@ export const leaderboardApi = {
     request<any[]>(`/leaderboard${buildQueryString({ schoolId, ...params })}`),
 
   getMySchool: () =>
-    request<{ id: string; name: string; state: string; district: string; country: string }>('/leaderboard/my-school'),
+    request<{ id: string; name: string; state: string; district: string; country: string; welcomeImage?: string | null }>('/leaderboard/my-school'),
 };
 
 export const statsApi = {
@@ -280,25 +280,25 @@ export const voiceApi = {
 };
 
 export const aiApi = {
-  chat: (data: { message: string; bookId?: string; page?: number; pageText?: string }) =>
+  chat: (data: { message: string; bookId?: string; page?: number; pageText?: string; language?: string }) =>
     request<{ message: string }>('/ai/chat', {
       method: 'POST',
       body: JSON.stringify(data),
     }),
 
-  explain: (data: { text: string; bookId: string; page?: number }) =>
+  explain: (data: { text: string; bookId: string; page?: number; language?: string }) =>
     request<{ explanation: string }>('/ai/explain', {
       method: 'POST',
       body: JSON.stringify(data),
     }),
 
-  define: (data: { word: string; bookId: string }) =>
+  define: (data: { word: string; bookId: string; language?: string }) =>
     request<{ definition: string }>('/ai/define', {
       method: 'POST',
       body: JSON.stringify(data),
     }),
 
-  translate: (data: { text: string; bookId: string; page?: number }) =>
+  translate: (data: { text: string; bookId: string; page?: number; language?: string }) =>
     request<{ translation: string }>('/ai/translate', {
       method: 'POST',
       body: JSON.stringify(data),
